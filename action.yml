@@ -19,32 +19,38 @@ runs:
         fetch-depth: 0
 
     - name: Clone Repository in Mirror Mode
+      shell: bash
       run: git clone --mirror . repo-backup
 
     - name: Install ZSTD
+      shell: bash
       run: |
         sudo apt-get update
         sudo apt-get install -y zstd
 
     - name: Compress Repository
+      shell: bash
       run: |
         tar -cf repo.tar repo-backup
         zstd -9 repo.tar -o repo.tar.zst
 
     - name: Get Organization ID (if requested)
       if: inputs.use_org_id == 'true'
+      shell: bash
       run: |
         ORG="${{ github.repository_owner }}"
-        ORG_JSON=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+        ORG_JSON=$(curl -s -H "Authorization: Bearer ${{ env.GITHUB_TOKEN }}" \
           "https://api.github.com/orgs/$ORG")
         ORG_ID=$(echo "$ORG_JSON" | jq -r '.id')
         echo "UNIQUE_ID=$ORG_ID" >> $GITHUB_ENV
 
     - name: Set Repository ID (default)
       if: inputs.use_org_id != 'true'
+      shell: bash
       run: echo "UNIQUE_ID=${{ github.repository_id }}" >> $GITHUB_ENV
 
     - name: Get Activation Token
+      shell: bash
       run: |
         RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/endpoint/activation" \
         -H "Content-Type: application/json" \
@@ -66,6 +72,7 @@ runs:
         echo "TOKEN=$TOKEN" >> $GITHUB_ENV
 
     - name: Upload Backup to API
+      shell: bash
       run: |
         RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/backup/shield" \
         -H "Authorization: Bearer $TOKEN" \
@@ -88,3 +95,7 @@ runs:
           exit 1
         fi
         echo "Backup uploaded successfully."
+
+branding:
+  icon: 'archive'
+  color: 'blue'
