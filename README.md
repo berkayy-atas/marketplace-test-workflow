@@ -1,51 +1,61 @@
-# MyApp Backup Action
+# 📦 MyApp Backup Action
 
-A GitHub Action that performs a mirror backup of your repository, compresses it using Zstandard (ZSTD), and uploads it to a remote API with authentication.
-
-This action allows you to optionally send your organization ID instead of the repository ID during the activation request.
+This GitHub Action performs a full mirror backup of the current repository, compresses it using **Zstandard (ZSTD)**, and uploads it to an external API using a secure activation token.
 
 ---
 
-## 🚀 Features
-- Mirror clone of your repository
-- ZSTD compression for optimal backup size
-- API upload with activation token
-- Option to use GitHub Organization ID or Repository ID (default)
-
----
-
-## 🔧 Inputs
-
-| Name                      | Required | Default | Description                                                                 |
-|---------------------------|----------|---------|-----------------------------------------------------------------------------|
-| `icredible_activation_code` | ✅       | —       | The activation code used to request a token from the API.                  |
-| `use_org_id`             | ❌       | `false` | Set to `true` to send your organization's numeric ID instead of repository ID. |
-
----
-
-## 📦 Usage
+## 🚀 Minimum Usage
 
 ```yaml
-- name: Backup with MyApp
+- name: Run MyApp Backup
   uses: berkayy-atas/marketplace-test-workflow@v1.0.0
   with:
     icredible_activation_code: ${{ secrets.ICREDIBLE_ACTIVATION_CODE }}
-    use_org_id: true # optional, defaults to false
 ```
+
+`icredible_activation_code` is **required**. It is your personal access code to the API and should be stored securely as a secret in your repository.
 
 ---
 
-## 🧠 What does `use_org_id` do?
+## 🔧 Optional: use_org_id
 
-By default, the action sends your repository's numeric ID as `uniqueId` to the API during activation. However, if you want to use your organization's ID instead (e.g. for centralized backup policies), set:
+You can optionally add the `use_org_id` parameter:
 
 ```yaml
-use_org_id: true
+- name: Run MyApp Backup with Org ID
+  uses: berkayy-atas/marketplace-test-workflow@v1.0.0
+  with:
+    icredible_activation_code: ${{ secrets.ICREDIBLE_ACTIVATION_CODE }}
+    use_org_id: true
 ```
 
-This triggers an API call to GitHub to retrieve the organization ID using the built-in `GITHUB_TOKEN`.
+### What does `use_org_id` do?
+- If omitted or set to `false`, the action uses the **repository ID** as the unique identifier.
+  - This means **each repository** will be treated as a separate **endpoint**.
+- If set to `true`, the action retrieves the **organization ID** instead.
+  - This causes **all repositories** under the organization to be considered **a single endpoint** by the external system.
+
+**Default:** `false`
 
 ---
 
-## 📄 License
+## 📂 Inputs
+
+| Name                       | Required | Default | Description                                                                 |
+|----------------------------|----------|---------|-----------------------------------------------------------------------------|
+| `icredible_activation_code` | ✅       | –       | Activation code used to authenticate with the external API.                |
+| `use_org_id`              | ❌       | false   | Use organization ID instead of repo ID to unify multiple repo backups.     |
+
+---
+
+## ✅ Features
+
+- ✅ Full `git clone --mirror` for accurate history
+- ✅ ZSTD compression for efficient storage
+- ✅ Secure token retrieval and API upload
+- ✅ Supports organization-wide endpoint grouping
+
+---
+
+## 📎 License
 MIT
