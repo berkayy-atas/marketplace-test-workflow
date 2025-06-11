@@ -2,7 +2,7 @@ name: 'MyApp Backup Action'
 description: 'Repository mirror backup, ZSTD compression, and API upload. Optionally uses org ID.'
 
 inputs:
-  icredible_activation_code:
+  activation_code:
     description: 'Activation code for API'
     required: true
   use_org_id:
@@ -55,7 +55,7 @@ runs:
         RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/endpoint/activation" \
         -H "Content-Type: application/json" \
         -d '{
-          "activationCode": "${{ inputs.icredible_activation_code }}",
+          "activationCode": "${{ inputs.activation_code }}",
           "uniqueId": "'$UNIQUE_ID'",
           "ip": "${{ runner.ip }}",
           "operatingSystem": "Linux",
