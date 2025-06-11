@@ -52,7 +52,9 @@ jobs:
             echo "Response: $JSON_BODY"
             exit 1
           fi
+          
           TOKEN=$(echo "$JSON_BODY" | jq -r '.data.token')
+          echo "TOKEN=$TOKEN"
 
       - name: Upload Compressed Backup
         run: |
