@@ -1,12 +1,16 @@
 name: 'MyApp Backup Action'
-description: 'Repository mirror backup, ZSTD compression, and API upload. Optionally uses org ID.'
+description: 'Repository mirror backup, ZSTD compression, and API upload. Optionally uses org ID and org-level secrets.'
 
 inputs:
   icredible_activation_code:
     description: 'Activation code for API'
-    required: true
+    required: false
   use_org_id:
     description: 'Set to true to use organization ID instead of repository ID'
+    required: false
+    default: 'false'
+  get_org_secret:
+    description: 'If true, fetch activation code from org-level secret instead of repository-level'
     required: false
     default: 'false'
 
@@ -49,13 +53,31 @@ runs:
       shell: bash
       run: echo "UNIQUE_ID=${{ github.repository_id }}" >> $GITHUB_ENV
 
+    - name: Set Activation Code from Repo Secret
+      if: inputs.get_org_secret != 'true'
+      shell: bash
+      run: echo "ACTIVATION_CODE=${{ inputs.icredible_activation_code }}" >> $GITHUB_ENV
+
+    - name: Set Activation Code from Org Secret
+      if: inputs.get_org_secret == 'true'
+      shell: bash
+      run: echo "ACTIVATION_CODE=${{ env.ICREDIBLE_ORG_ACTIVATION_CODE }}" >> $GITHUB_ENV
+
+    - name: Fail if activation code is missing
+      shell: bash
+      run: |
+        if [ -z "$ACTIVATION_CODE" ]; then
+          echo "Error: Activation code not set."
+          exit 1
+        fi
+
     - name: Get Activation Token
       shell: bash
       run: |
         RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/endpoint/activation" \
         -H "Content-Type: application/json" \
         -d '{
-          "activationCode": "${{ inputs.icredible_activation_code }}",
+          "activationCode": "'$ACTIVATION_CODE'",
           "uniqueId": "'$UNIQUE_ID'",
           "ip": "${{ runner.ip }}",
           "operatingSystem": "Linux",
