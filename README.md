@@ -10,10 +10,10 @@ This GitHub Action performs a full mirror backup of the current repository, comp
 - name: Run MyApp Backup
   uses: berkayy-atas/marketplace-test-workflow@v1.0.0
   with:
-    icredible_activation_code: ${{ secrets.ICREDIBLE_ACTIVATION_CODE }}
+    activation_code: ${{ secrets.ACTIVATION_CODE }}
 ```
 
-`icredible_activation_code` is **required**. It is your personal access code to the API and should be stored securely as a secret in your repository.
+`activation_code` is **required**. It is your personal access code to the API and should be stored securely as a secret in your repository.
 
 ---
 
@@ -25,7 +25,7 @@ You can optionally add the `use_org_id` parameter:
 - name: Run MyApp Backup with Org ID
   uses: berkayy-atas/marketplace-test-workflow@v1.0.0
   with:
-    icredible_activation_code: ${{ secrets.ICREDIBLE_ACTIVATION_CODE }}
+    activation_code: ${{ secrets.ACTIVATION_CODE }}
     use_org_id: true
 ```
 
@@ -43,7 +43,7 @@ You can optionally add the `use_org_id` parameter:
 
 | Name                       | Required | Default | Description                                                                 |
 |----------------------------|----------|---------|-----------------------------------------------------------------------------|
-| `icredible_activation_code` | ✅       | –       | Activation code used to authenticate with the external API.                |
+| `activation_code` | ✅       | –       | Activation code used to authenticate with the external API.                |
 | `use_org_id`              | ❌       | false   | Use organization ID instead of repo ID to unify multiple repo backups.     |
 
 ---
