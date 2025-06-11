@@ -1,0 +1,90 @@
+name: 'MyApp Backup Action'
+description: 'Repository mirror backup, ZSTD compression, and API upload. Optionally uses org ID.'
+
+inputs:
+  icredible_activation_code:
+    description: 'Activation code for API'
+    required: true
+  use_org_id:
+    description: 'Set to true to use organization ID instead of repository ID'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Clone Repository in Mirror Mode
+      run: git clone --mirror . repo-backup
+
+    - name: Install ZSTD
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y zstd
+
+    - name: Compress Repository
+      run: |
+        tar -cf repo.tar repo-backup
+        zstd -9 repo.tar -o repo.tar.zst
+
+    - name: Get Organization ID (if requested)
+      if: inputs.use_org_id == 'true'
+      run: |
+        ORG="${{ github.repository_owner }}"
+        ORG_JSON=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          "https://api.github.com/orgs/$ORG")
+        ORG_ID=$(echo "$ORG_JSON" | jq -r '.id')
+        echo "UNIQUE_ID=$ORG_ID" >> $GITHUB_ENV
+
+    - name: Set Repository ID (default)
+      if: inputs.use_org_id != 'true'
+      run: echo "UNIQUE_ID=${{ github.repository_id }}" >> $GITHUB_ENV
+
+    - name: Get Activation Token
+      run: |
+        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/endpoint/activation" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "activationCode": "${{ inputs.icredible_activation_code }}",
+          "uniqueId": "'$UNIQUE_ID'",
+          "ip": "${{ runner.ip }}",
+          "operatingSystem": "Linux",
+          "endpointType": "Workstation",
+          "endpointName": "Github Endpoint (${{ github.repository }})"
+        }')
+        HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+        JSON_BODY=$(echo "$RESPONSE" | head -n -1)
+        if [ "$HTTP_STATUS" -ne 200 ]; then
+          echo "Activation failed: $JSON_BODY"
+          exit 1
+        fi
+        TOKEN=$(echo "$JSON_BODY" | jq -r '.data.token')
+        echo "TOKEN=$TOKEN" >> $GITHUB_ENV
+
+    - name: Upload Backup to API
+      run: |
+        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/backup/shield" \
+        -H "Authorization: Bearer $TOKEN" \
+        -F "file=@repo.tar.zst" \
+        -F "Size=20" \
+        -F "CompressedFileSize=10" \
+        -F "Attributes=32" \
+        -F "FileName=${{ github.repository }}" \
+        -F "CompressionEngine=None" \
+        -F "CompressionLevel=NoCompression" \
+        -F "FullPath=/github/${{ github.repository }}/repo.tar.zst" \
+        -F "encryptionType=None" \
+        -F "RevisionType=1" \
+        -F "MetaData[Description]=Repository backup of ${{ github.repository }}" \
+        -F "MetaData[LastAccessTime]=2025-04-02 08:57:16.015644 +00:00")
+        HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+        JSON_BODY=$(echo "$RESPONSE" | head -n -1)
+        if [ "$HTTP_STATUS" -ne 200 ]; then
+          echo "Upload failed: $JSON_BODY"
+          exit 1
+        fi
+        echo "Backup uploaded successfully."
