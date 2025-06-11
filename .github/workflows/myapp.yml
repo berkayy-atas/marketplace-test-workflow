@@ -59,7 +59,7 @@ jobs:
       - name: Upload Compressed Backup
         run: |
           echo "Uploading compressed backup to API..."
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com//backup/shield" \
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/backup/shield" \
           -H "Authorization: Bearer $TOKEN" \
           -F "file=@repo.tar.zst" \
           -F "Size=20" \
