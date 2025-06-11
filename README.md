@@ -55,7 +55,3 @@ You can optionally add the `use_org_id` parameter:
 - ✅ Secure token retrieval and API upload
 - ✅ Supports organization-wide endpoint grouping
 
----
-
-## 📎 License
-MIT
