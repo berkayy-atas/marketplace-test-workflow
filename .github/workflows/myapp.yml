@@ -27,16 +27,17 @@ jobs:
         run: |
           tar -cf repo.tar repo-backup
           zstd -9 repo.tar -o repo.tar.zst
-          echo "${{ secrets.SECRET_KEY }}" > key.txt
-          openssl enc -aes-256-cbc -salt -in repo.tar.zst -out repo.tar.zst.enc -pass file:key.txt
-          echo "Encrypted file created: repo.tar.zst.enc"
+          echo "Encrypted file created: repo.tar.zst"
+        # echo "${{ secrets.SECRET_KEY }}" > key.txt
+        # openssl enc -aes-256-cbc -salt -in repo.tar.zst -out repo.tar.zst.enc -pass file:key.txt
+        # echo "Encrypted file created: repo.tar.zst.enc"
           
       - name: Get Activation Token
         id: get_token
         run: |
           echo "Requesting activation token..."
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/endpoint/activation" -H "Content-Type: application/json" -d '{
-            "activationCode": "${{ secrets.ICREDIBLE_ACTIVATION_CODE }}",
+            "activationCode": "${{ secrets.ACTIVATION_CODE }}",
             "uniqueId": "${{ github.repository_id }}",
             "ip": "${{ runner.ip }}",
             "operatingSystem": "Linux",
@@ -62,7 +63,7 @@ jobs:
           echo "Uploading compressed backup to API..."
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/backup/shield" \
           -H "Authorization: Bearer $TOKEN" \
-          -F "file=@repo.tar.zst.enc" \
+          -F "file=@repo.tar.zst" \
           -F "Size=20" \
           -F "CompressedFileSize=10" \
           -F "Attributes=32)" \
