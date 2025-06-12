@@ -26,7 +26,7 @@ jobs:
       - name: Compress & Encrypt Repository
         run: |
           tar -cf repo.tar repo-backup
-       #   zstd -9 repo.tar -o repo.tar.zst
+           zstd -9 repo.tar -o repo.tar.zst
        #   echo "Encrypted file created: repo.tar.zst"
        #   echo "${{ secrets.SECRET_KEY }}" > key.txt
        #   openssl enc -aes-256-cbc -salt -in repo.tar.zst -out repo.tar.zst -pass file:key.txt
@@ -63,7 +63,7 @@ jobs:
           echo "Uploading compressed backup to API..."
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/backup/shield" \
           -H "Authorization: Bearer $TOKEN" \
-          -F "file=@repo.tar" \
+          -F "file=@repo.tar.zst" \
           -F "Size=1111111" \
           -F "CompressedFileSize=10" \
           -F "Attributes=32)" \
