@@ -8,7 +8,7 @@ This GitHub Action performs a full mirror backup of the current repository, comp
 
 ```yaml
 - name: Run MyApp Backup
-  uses: berkayy-atas/marketplace-test-workflow@v1.0.0
+  uses: berkayy-atas/marketplace-test-workflow@latest
   with:
     activation_code: ${{ secrets.ACTIVATION_CODE }}
 ```
@@ -23,7 +23,7 @@ You can optionally add the `use_org_id` parameter:
 
 ```yaml
 - name: Run MyApp Backup with Org ID
-  uses: berkayy-atas/marketplace-test-workflow@v1.0.0
+  uses: berkayy-atas/marketplace-test-workflow@latest
   with:
     activation_code: ${{ secrets.ACTIVATION_CODE }}
     use_org_id: true
