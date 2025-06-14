@@ -10,6 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run MyApp Backup
-        uses: berkayy-atas/marketplace-test-workflow@latest
+        uses: berkayy-atas/marketplace-test-workflow@v1.0.3
         with:
           activation_code: ${{ secrets.ACTIVATION_CODE }}
