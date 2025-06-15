@@ -26,8 +26,49 @@ runs:
 
     - name: Clone Repository in Mirror Mode
       shell: bash
-      run: git clone --mirror . repo-backup
+      run: git clone --mirror . repo-mirror
 
+   - name: Install Dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y zstd jq
+        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+        sudo apt-get update
+        sudo apt-get install -y gh
+
+    - name: Export Repository Metadata
+      shell: bash
+      run: |
+        mkdir -p repo-metadata
+        gh repo view --json name,description,createdAt,updatedAt,defaultBranchRef,mergeCommitAllowed,rebaseMergeAllowed,squashMergeAllowed > repo-metadata/repo-info.json
+        gh issue list --state all --json number,title,state,body,createdAt,updatedAt,closedAt,labels,assignees,comments > repo-metadata/issues.json
+        gh pr list --state all --json number,title,state,body,createdAt,updatedAt,closedAt,mergedAt,baseRefName,headRefName,labels,assignees,comments,reviews > repo-metadata/pull_requests.json
+        gh api graphql -f query='
+          {
+            repository(owner: "${{ github.repository_owner }}", name: "${{ github.event.repository.name }}") {
+              labels(first: 100) {
+                nodes {
+                  name
+                  color
+                  description
+                }
+              }
+              milestones(first: 100) {
+                nodes {
+                  title
+                  state
+                  description
+                  dueOn
+                }
+              }
+            }
+          }
+        ' | jq . > repo-metadata/labels_milestones.json
+      env:
+        GH_TOKEN: ${{ github.token }}
+        
     - name: Install ZSTD
       shell: bash
       run: |
@@ -40,7 +81,7 @@ runs:
         REPO_NAME=$(basename "${{ github.repository }}")
         ENC_FILE_NAME="$REPO_NAME.tar.zst.enc"
 
-        tar -cf repo.tar repo-backup
+        tar -cf repo.tar repo-mirror repo-metadata
         zstd -9 repo.tar -o repo.tar.zst
         openssl enc -aes-256-cbc -salt -pbkdf2 -in repo.tar.zst -out "$ENC_FILE_NAME" -pass pass:${{ inputs.encryption_key }}
 
