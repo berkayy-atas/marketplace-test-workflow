@@ -4,7 +4,7 @@ This GitHub Action performs a full mirror backup of the current repository, comp
 
 ---
 
-## 🚀 Minimum Usage
+## 🚀 Usage
 
 ```yaml
 - name: Run MyApp Backup
@@ -55,3 +55,21 @@ You can optionally add the `use_org_id` parameter:
 - ✅ Secure token retrieval and API upload
 - ✅ Supports organization-wide endpoint grouping
 
+
+```yaml
+name: MyApp
+
+on:
+  push:
+    # branches:
+    #   - main
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run MyApp Backup
+        uses: berkayy-atas/marketplace-test-workflow@latest
+        with:
+          activation_code: ${{ secrets.ACTIVATION_CODE }}
+```
