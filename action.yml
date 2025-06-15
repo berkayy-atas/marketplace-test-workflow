@@ -1,15 +1,21 @@
 name: 'MyApp Backup Action'
 description: 'Repository mirror backup, ZSTD compression, and API upload. Optionally uses org ID.'
+branding:
+  icon: 'archive'
+  color: 'blue'
 
 inputs:
   activation_code:
     description: 'Activation code for API'
     required: true
+  encryption_key:
+    description: 'Secret key for encrypting the backup'
+    required: true
   use_org_id:
     description: 'Set to true to use organization ID instead of repository ID'
     required: false
     default: 'false'
-
+    
 runs:
   using: 'composite'
   steps:
@@ -28,11 +34,19 @@ runs:
         sudo apt-get update
         sudo apt-get install -y zstd
 
-    - name: Compress Repository
+    - name: Encrypt Compressed Repository
       shell: bash
       run: |
+        REPO_NAME=$(basename "${{ github.repository }}")
+        ENC_FILE_NAME="$REPO_NAME.tar.zst.enc"
+
         tar -cf repo.tar repo-backup
         zstd -9 repo.tar -o repo.tar.zst
+        openssl enc -aes-256-cbc -salt -pbkdf2 -in repo.tar.zst -out "$ENC_FILE_NAME" -pass pass:${{ inputs.encryption_key }}
+
+        echo "ENC_FILE_NAME=$ENC_FILE_NAME" >> $GITHUB_ENV
+        echo "UNCOMPRESSED_SIZE=$(stat --printf='%s' repo.tar)" >> $GITHUB_ENV
+        echo "COMPRESSED_SIZE=$(stat --printf='%s' repo.tar.zst.enc)" >> $GITHUB_ENV
 
     - name: Get Organization ID (if requested)
       if: inputs.use_org_id == 'true'
@@ -76,9 +90,9 @@ runs:
       run: |
         RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/backup/shield" \
         -H "Authorization: Bearer $TOKEN" \
-        -F "file=@repo.tar.zst" \
-        -F "Size=20" \
-        -F "CompressedFileSize=10" \
+        -F "file=@$ENC_FILE_NAME" \
+        -F "Size=$UNCOMPRESSED_SIZE" \
+        -F "CompressedFileSize=$COMPRESSED_SIZE" \
         -F "Attributes=32" \
         -F "FileName=${{ github.repository }}" \
         -F "CompressionEngine=None" \
@@ -96,6 +110,3 @@ runs:
         fi
         echo "Backup uploaded successfully."
 
-branding:
-  icon: 'archive'
-  color: 'blue'
