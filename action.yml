@@ -28,7 +28,7 @@ runs:
       shell: bash
       run: git clone --mirror . repo-mirror
 
-   - name: Install Dependencies
+    - name: Install Dependencies
       shell: bash
       run: |
         sudo apt-get update
