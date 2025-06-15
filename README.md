@@ -46,6 +46,7 @@ You can optionally add the `use_org_id` parameter:
 | Name                       | Required | Default | Description                                                                 |
 |----------------------------|----------|---------|-----------------------------------------------------------------------------|
 | `activation_code` | ✅       | –       | Activation code used to authenticate with the external API.                |
+| `encryption_key` | ✅       | –       | Encryption key encrypts files with a key you specify before they are shielded.                |
 | `use_org_id`              | ❌       | false   | Use organization ID instead of repo ID to unify multiple repo backups.     |
 
 ---
