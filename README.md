@@ -11,6 +11,7 @@ This GitHub Action performs a full mirror backup of the current repository, comp
   uses: berkayy-atas/marketplace-test-workflow@latest
   with:
     activation_code: ${{ secrets.ACTIVATION_CODE }}
+    encryption_key: ${{ secrets.ENCRYPTION_KEY }}
 ```
 
 `activation_code` is **required**. It is your personal access code to the API and should be stored securely as a secret in your repository.
@@ -26,6 +27,7 @@ You can optionally add the `use_org_id` parameter:
   uses: berkayy-atas/marketplace-test-workflow@latest
   with:
     activation_code: ${{ secrets.ACTIVATION_CODE }}
+    encryption_key: ${{ secrets.ENCRYPTION_KEY }}
     use_org_id: true
 ```
 
@@ -72,4 +74,5 @@ jobs:
         uses: berkayy-atas/marketplace-test-workflow@latest
         with:
           activation_code: ${{ secrets.ACTIVATION_CODE }}
+          encryption_key: ${{ secrets.ENCRYPTION_KEY }}
 ```
