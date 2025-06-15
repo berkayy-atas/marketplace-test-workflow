@@ -108,5 +108,7 @@ runs:
           echo "Upload failed: $JSON_BODY"
           exit 1
         fi
+        
+        echo "$JSON_BODY" 
         echo "Backup uploaded successfully."
 
