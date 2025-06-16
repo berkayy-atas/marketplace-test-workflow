@@ -15,6 +15,7 @@ This GitHub Action performs a full mirror backup of the current repository, comp
 ```
 
 `activation_code` is **required**. It is your personal access code to the API and should be stored securely as a secret in your repository.
+`encryption_key` is **required**. It is your personal encryption key for lock and open the file and should be stored securely as a secret in your repository.
 
 ---
 
