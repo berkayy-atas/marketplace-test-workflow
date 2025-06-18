@@ -90,8 +90,6 @@ runs:
           }' | jq . > repo-metadata/labels_milestones.json
       env:
         GH_TOKEN: ${{ github.token }}
-      env:
-        GH_TOKEN: ${{ github.token }}
         
     - name: Install ZSTD
       shell: bash
