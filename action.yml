@@ -67,10 +67,13 @@ runs:
         # Pull Requests
         gh pr list --state all --json number,title,state,body,createdAt,closedAt,mergedAt,baseRefName,headRefName,labels > repo-metadata/pull_requests.json
 
-        # Pull Requests comments
+         # BACKUP ALL PR COMMENTS (issue comments + review comments)
         for pr_number in $(gh pr list --json number --jq '.[].number'); do
-          echo "Backing up comments for PR #$pr_number"
-          gh pr view "$pr_number" --json comments > "repo-metadata/pr_comments_$pr_number.json"
+          echo "Backing up issue comments for PR #$pr_number"
+          gh api repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues/$pr_number/comments > "repo-metadata/pr_issue_comments_$pr_number.json"
+
+          echo "Backing up review comments for PR #$pr_number"
+          gh api repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/pulls/$pr_number/comments > "repo-metadata/pr_review_comments_$pr_number.json"
         done
         
         # Labels & Milestones
