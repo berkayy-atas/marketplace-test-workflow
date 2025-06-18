@@ -42,11 +42,14 @@ runs:
       shell: bash
       run: |
         mkdir -p repo-metadata
-        # Mevcut metadata
+
+        # Repo basic info
         gh repo view --json name,description,createdAt,updatedAt,defaultBranchRef,mergeCommitAllowed,rebaseMergeAllowed,squashMergeAllowed > repo-metadata/repo-info.json
+
+        # Issues
         gh issue list --state all --json number,title,state,body,createdAt,updatedAt,closedAt,labels,assignees,comments > repo-metadata/issues.json
-        
-        # Tüm branch'leri al
+
+        # Branches => sadece nodes array'i sakla!
         gh api graphql -f query='
           {
             repository(owner: "${{ github.repository_owner }}", name: "${{ github.event.repository.name }}") {
@@ -59,10 +62,12 @@ runs:
                 }
               }
             }
-          }' > repo-metadata/branches.json
-        
-        # Tüm PR'ları (açık/kapalı) ve detayları al
+          }' | jq '.data.repository.refs' > repo-metadata/branches.json
+
+        # Pull Requests
         gh pr list --state all --json number,title,state,body,createdAt,closedAt,mergedAt,baseRefName,headRefName,labels > repo-metadata/pull_requests.json
+
+        # Labels & Milestones
         gh api graphql -f query='
           {
             repository(owner: "${{ github.repository_owner }}", name: "${{ github.event.repository.name }}") {
@@ -82,8 +87,9 @@ runs:
                 }
               }
             }
-          }
-        ' | jq . > repo-metadata/labels_milestones.json
+          }' | jq . > repo-metadata/labels_milestones.json
+      env:
+        GH_TOKEN: ${{ github.token }}
       env:
         GH_TOKEN: ${{ github.token }}
         
