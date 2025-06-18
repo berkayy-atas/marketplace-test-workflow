@@ -55,19 +55,14 @@ runs:
                   name
                   target {
                     oid
-                    ... on Commit {
-                      message
-                      committedDate
-                    }
                   }
                 }
               }
             }
-          }
-        ' | jq . > repo-metadata/branches.json
+          }' > repo-metadata/branches.json
         
         # Tüm PR'ları (açık/kapalı) ve detayları al
-        gh pr list --state all --json number,title,state,body,createdAt,updatedAt,closedAt,mergedAt,baseRefName,headRefName,labels,assignees,comments,reviews > repo-metadata/pull_requests.json
+        gh pr list --state all --json number,title,state,body,createdAt,closedAt,mergedAt,baseRefName,headRefName,labels > repo-metadata/pull_requests.json
         gh api graphql -f query='
           {
             repository(owner: "${{ github.repository_owner }}", name: "${{ github.event.repository.name }}") {
