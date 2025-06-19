@@ -163,7 +163,7 @@ runs:
         EVENT="${{ github.event_name }}"
         REF="${{ github.ref }}"
         ACTOR="${{ github.actor }}"
-
+        
         if git rev-parse --verify HEAD >/dev/null 2>&1; then
           COMMIT=$(git log -1 --pretty=format:"%H")
           SHORT=$(git log -1 --pretty=format:"%h")
@@ -194,7 +194,7 @@ runs:
         [ -n "$DATE" ] && CURL_ARGS+=(-F "MetaData[Date]=$DATE")
         [ -n "$COMMITTER" ] && CURL_ARGS+=(-F "MetaData[Committer]=$COMMITTER")
         [ -n "$MESSAGE" ] && CURL_ARGS+=(-F "MetaData[Message]=$MESSAGE")
-
+        
         RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
           "https://dev.api.file-security.icredible.com/backup/shield" \
           -H "Authorization: Bearer $TOKEN" \
@@ -210,14 +210,14 @@ runs:
           -F "RevisionType=1" \
           "${CURL_ARGS[@]}"
         )
-
+        
         HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
         JSON_BODY=$(echo "$RESPONSE" | head -n -1)
         if [ "$HTTP_STATUS" -ne 200 ]; then
           echo "Upload failed: $JSON_BODY"
           exit 1
         fi
-
+        
         echo "$JSON_BODY"
         echo "Backup uploaded successfully."
 
