@@ -194,7 +194,10 @@ runs:
         [ -n "$DATE" ] && CURL_ARGS+=(-F "MetaData[Date]=$DATE")
         [ -n "$COMMITTER" ] && CURL_ARGS+=(-F "MetaData[Committer]=$COMMITTER")
         [ -n "$MESSAGE" ] && CURL_ARGS+=(-F "MetaData[Message]=$MESSAGE")
-        
+
+        echo "CURL_ARGS content:"
+        printf "'%s'\n" "${CURL_ARGS[@]}"
+
         RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
           "https://dev.api.file-security.icredible.com/backup/shield" \
           -H "Authorization: Bearer $TOKEN" \
