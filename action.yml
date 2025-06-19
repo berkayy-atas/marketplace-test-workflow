@@ -138,7 +138,7 @@ runs:
     - name: Get Activation Token
       shell: bash
       run: |
-        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/endpoint/activation" \
+        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.ACTIVATION_URL }}" \
         -H "Content-Type: application/json" \
         -d '{
           "activationCode": "${{ inputs.activation_code }}",
