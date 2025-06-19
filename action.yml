@@ -157,6 +157,24 @@ runs:
         TOKEN=$(echo "$JSON_BODY" | jq -r '.data.token')
         echo "TOKEN=$TOKEN" >> $GITHUB_ENV
 
+    - name: Print Triggering Commit Info
+      shell: bash
+      run: |
+        echo "=== Trigger Information ==="
+        echo "Event: ${{ github.event_name }}"
+        echo "Ref:   ${{ github.ref }}"
+        echo "SHA:   ${{ github.sha }}"
+        echo "Actor: ${{ github.actor }}"
+        echo "---"
+    
+        if git rev-parse --verify HEAD >/dev/null 2>&1; then
+          echo "Latest Commit Info:"
+          git log -1 --pretty=format:"Commit: %H [%h]%nParents: %P%nAuthor: %an <%ae>%nDate: %ad%nCommitter: %cn%n%n%s%n%b" --date=local
+        else
+          echo "⚠️  No commit available for this event."
+        fi
+
+
     - name: Upload Backup to API
       shell: bash
       run: |
