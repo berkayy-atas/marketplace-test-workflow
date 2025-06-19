@@ -157,48 +157,67 @@ runs:
         TOKEN=$(echo "$JSON_BODY" | jq -r '.data.token')
         echo "TOKEN=$TOKEN" >> $GITHUB_ENV
 
-    - name: Print Triggering Commit Info
+    - name: Upload Backup to Shield API (with dynamic commit meta)
       shell: bash
       run: |
-        echo "=== Trigger Information ==="
-        echo "Event: ${{ github.event_name }}"
-        echo "Ref:   ${{ github.ref }}"
-        echo "SHA:   ${{ github.sha }}"
-        echo "Actor: ${{ github.actor }}"
-        echo "---"
-    
+        EVENT="${{ github.event_name }}"
+        REF="${{ github.ref }}"
+        ACTOR="${{ github.actor }}"
+
         if git rev-parse --verify HEAD >/dev/null 2>&1; then
-          echo "Latest Commit Info:"
-          git log -1 --pretty=format:"Commit: %H [%h]%nParents: %P%nAuthor: %an <%ae>%nDate: %ad%nCommitter: %cn%n%n%s%n%b" --date=local
+          COMMIT=$(git log -1 --pretty=format:"%H")
+          SHORT=$(git log -1 --pretty=format:"%h")
+          PARENTS=$(git log -1 --pretty=format:"%P")
+          AUTHOR=$(git log -1 --pretty=format:"%an <%ae>")
+          DATE=$(git log -1 --pretty=format:"%ad")
+          COMMITTER=$(git log -1 --pretty=format:"%cn")
+          MESSAGE=$(git log -1 --pretty=format:"%s%n%b")
         else
-          echo "⚠️  No commit available for this event."
+          COMMIT=""
+          SHORT=""
+          PARENTS=""
+          AUTHOR=""
+          DATE=""
+          COMMITTER=""
+          MESSAGE=""
         fi
 
+        CURL_ARGS=(
+          -F "MetaData[Event]=$EVENT"
+          -F "MetaData[Ref]=$REF"
+          -F "MetaData[Actor]=$ACTOR"
+        )
+        [ -n "$COMMIT" ] && CURL_ARGS+=(-F "MetaData[Commit]=$COMMIT")
+        [ -n "$SHORT" ] && CURL_ARGS+=(-F "MetaData[CommitShort]=$SHORT")
+        [ -n "$PARENTS" ] && CURL_ARGS+=(-F "MetaData[Parents]=$PARENTS")
+        [ -n "$AUTHOR" ] && CURL_ARGS+=(-F "MetaData[Author]=$AUTHOR")
+        [ -n "$DATE" ] && CURL_ARGS+=(-F "MetaData[Date]=$DATE")
+        [ -n "$COMMITTER" ] && CURL_ARGS+=(-F "MetaData[Committer]=$COMMITTER")
+        [ -n "$MESSAGE" ] && CURL_ARGS+=(-F "MetaData[Message]=$MESSAGE")
 
-    - name: Upload Backup to API
-      shell: bash
-      run: |
-        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/backup/shield" \
-        -H "Authorization: Bearer $TOKEN" \
-        -F "file=@$ENC_FILE_NAME" \
-        -F "Size=$UNCOMPRESSED_SIZE" \
-        -F "CompressedFileSize=$COMPRESSED_SIZE" \
-        -F "Attributes=32" \
-        -F "FileName=${{ github.repository }}" \
-        -F "CompressionEngine=None" \
-        -F "CompressionLevel=NoCompression" \
-        -F "FullPath=/github/${{ github.repository }}/repo.tar.zst" \
-        -F "encryptionType=None" \
-        -F "RevisionType=1" \
-        -F "MetaData[Description]=Repository backup of ${{ github.repository }}" \
-        -F "MetaData[LastAccessTime]=2025-04-02 08:57:16.015644 +00:00")
+        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+          "https://dev.api.file-security.icredible.com/backup/shield" \
+          -H "Authorization: Bearer $TOKEN" \
+          -F "file=@$ENC_FILE_NAME" \
+          -F "Size=$UNCOMPRESSED_SIZE" \
+          -F "CompressedFileSize=$COMPRESSED_SIZE" \
+          -F "Attributes=32" \
+          -F "FileName=${{ github.repository }}" \
+          -F "CompressionEngine=None" \
+          -F "CompressionLevel=NoCompression" \
+          -F "FullPath=/github/${{ github.repository }}/repo.tar.zst" \
+          -F "encryptionType=None" \
+          -F "RevisionType=1" \
+          "${CURL_ARGS[@]}"
+        )
+
         HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
         JSON_BODY=$(echo "$RESPONSE" | head -n -1)
         if [ "$HTTP_STATUS" -ne 200 ]; then
           echo "Upload failed: $JSON_BODY"
           exit 1
         fi
-        
-        echo "$JSON_BODY" 
+
+        echo "$JSON_BODY"
         echo "Backup uploaded successfully."
 
