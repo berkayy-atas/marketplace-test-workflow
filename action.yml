@@ -15,7 +15,7 @@ inputs:
     description: 'Set to true to use organization ID instead of repository ID'
     required: false
     default: 'false'
-    
+
 runs:
   using: 'composite'
   steps:
@@ -138,7 +138,7 @@ runs:
     - name: Get Activation Token
       shell: bash
       run: |
-        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.ACTIVATION_URL }}" \
+        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST " https://dev.api.file-security.icredible.com/endpoint/activation " \
         -H "Content-Type: application/json" \
         -d '{
           "activationCode": "${{ inputs.activation_code }}",
