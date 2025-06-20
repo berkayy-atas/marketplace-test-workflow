@@ -28,6 +28,24 @@ runs:
       shell: bash
       run: git clone --mirror . repo-mirror
 
+    - name: Download ic-context Artifact if exists
+      uses: actions/download-artifact@v4
+      with:
+        name: ic-context
+        path: .
+      continue-on-error: true
+
+    - name: Load fileRecordId from ic-context
+      id: load_context
+      shell: bash
+      run: |
+        if [ -f ic-context ]; then
+          FILE_RECORD_ID=$(grep 'FILE_RECORD_ID=' ic-context | cut -d '=' -f2)
+        else
+          FILE_RECORD_ID=""
+        fi
+        echo "fileRecordId=$FILE_RECORD_ID" >> $GITHUB_ENV
+
     - name: Install Dependencies
       shell: bash
       run: |
@@ -35,7 +53,6 @@ runs:
         sudo apt-get install -y zstd jq
         curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-        sudo apt-get update
         sudo apt-get install -y gh
 
     - name: Export Repository Metadata
@@ -100,17 +117,18 @@ runs:
       env:
         GH_TOKEN: ${{ github.token }}
         
-    - name: Install ZSTD
-      shell: bash
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y zstd
-
     - name: Encrypt Compressed Repository
       shell: bash
       run: |
-        REPO_NAME=$(basename "${{ github.repository }}")
-        ENC_FILE_NAME="$REPO_NAME.tar.zst.enc"
+        BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+        BRANCH_NAME_SAFE=$(echo "$BRANCH_NAME" | sed 's#/#-#g')
+        
+        # Event ve actor
+        EVENT="${GITHUB_EVENT_NAME}"
+        ACTOR="${GITHUB_ACTOR}"
+        
+        # Dosya adı
+        ENC_FILE_NAME="${BRANCH_NAME_SAFE}_${EVENT}_${ACTOR}.tar.zst.enc"
 
         tar -cf repo.tar repo-mirror repo-metadata
         zstd -9 repo.tar -o repo.tar.zst
@@ -203,6 +221,7 @@ runs:
           -H "Authorization: Bearer $TOKEN" \
           -F "file=@$ENC_FILE_NAME" \
           -F "Size=$UNCOMPRESSED_SIZE" \
+          -F "FileRecordId=${{ env.fileRecordId }}" \
           -F "CompressedFileSize=$COMPRESSED_SIZE" \
           -F "Attributes=32" \
           -F "FileName=${{ github.repository }}" \
@@ -222,5 +241,12 @@ runs:
         fi
         
         echo "$JSON_BODY"
+        echo "FILE_RECORD_ID=$(echo "$JSON_BODY" | jq -r '.fileRecordId')" >> ic-context
         echo "Backup uploaded successfully."
+
+    - name: Upload ic-context Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ic-context
+        path: ic-context
 
