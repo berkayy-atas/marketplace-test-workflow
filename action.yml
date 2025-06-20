@@ -15,7 +15,7 @@ inputs:
     description: 'Set to true to use organization ID instead of repository ID'
     required: false
     default: 'false'
-
+    
 runs:
   using: 'composite'
   steps:
@@ -27,24 +27,6 @@ runs:
     - name: Clone Repository in Mirror Mode
       shell: bash
       run: git clone --mirror . repo-mirror
-
-    - name: Download ic-context Artifact if exists
-      uses: actions/download-artifact@v4
-      with:
-        name: ic-context
-        path: .
-      continue-on-error: true
-
-    - name: Load fileRecordId from ic-context
-      id: load_context
-      shell: bash
-      run: |
-        if [ -f ic-context ]; then
-          FILE_RECORD_ID=$(grep 'FILE_RECORD_ID=' ic-context | cut -d '=' -f2)
-        else
-          FILE_RECORD_ID=""
-        fi
-        echo "fileRecordId=$FILE_RECORD_ID" >> $GITHUB_ENV
 
     - name: Install Dependencies
       shell: bash
@@ -120,15 +102,8 @@ runs:
     - name: Encrypt Compressed Repository
       shell: bash
       run: |
-        BRANCH_NAME="${GITHUB_REF#refs/heads/}"
-        BRANCH_NAME_SAFE=$(echo "$BRANCH_NAME" | sed 's#/#-#g')
-        
-        # Event ve actor
-        EVENT="${GITHUB_EVENT_NAME}"
-        ACTOR="${GITHUB_ACTOR}"
-        
-        # Dosya adı
-        ENC_FILE_NAME="${BRANCH_NAME_SAFE}_${EVENT}_${ACTOR}.tar.zst.enc"
+        REPO_NAME=$(basename "${{ github.repository }}")
+        ENC_FILE_NAME="$REPO_NAME.tar.zst.enc"
 
         tar -cf repo.tar repo-mirror repo-metadata
         zstd -9 repo.tar -o repo.tar.zst
@@ -156,7 +131,7 @@ runs:
     - name: Get Activation Token
       shell: bash
       run: |
-        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST " https://dev.api.file-security.icredible.com/endpoint/activation " \
+        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/endpoint/activation" \
         -H "Content-Type: application/json" \
         -d '{
           "activationCode": "${{ inputs.activation_code }}",
@@ -221,7 +196,6 @@ runs:
           -H "Authorization: Bearer $TOKEN" \
           -F "file=@$ENC_FILE_NAME" \
           -F "Size=$UNCOMPRESSED_SIZE" \
-          -F "FileRecordId=${{ env.fileRecordId }}" \
           -F "CompressedFileSize=$COMPRESSED_SIZE" \
           -F "Attributes=32" \
           -F "FileName=${{ github.repository }}" \
@@ -241,12 +215,4 @@ runs:
         fi
         
         echo "$JSON_BODY"
-        echo "FILE_RECORD_ID=$(echo "$JSON_BODY" | jq -r '.fileRecordId')" >> ic-context
         echo "Backup uploaded successfully."
-
-    - name: Upload ic-context Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ic-context
-        path: ic-context
-
