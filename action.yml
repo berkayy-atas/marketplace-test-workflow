@@ -54,21 +54,6 @@ runs:
       run: |
         mkdir -p repo-metadata
         gh repo view --json name,description,createdAt,updatedAt,defaultBranchRef,mergeCommitAllowed,rebaseMergeAllowed,squashMergeAllowed > repo-metadata/repo-info.json
-      env:
-        GH_TOKEN: ${{ github.token }}
-
-    - name: Export Issues
-      if: inputs.backup_issues == 'true'
-      shell: bash
-      run: |
-        gh issue list --state all --json number,title,state,body,createdAt,updatedAt,closedAt,labels,assignees,comments > repo-metadata/issues.json
-      env:
-        GH_TOKEN: ${{ github.token }}
-
-    - name: Export Pull Requests
-      if: inputs.backup_prs == 'true'
-      shell: bash
-      run: |
 
         # Branches => sadece nodes array'i sakla!
         gh api graphql -f query='
@@ -84,6 +69,22 @@ runs:
               }
             }
           }' | jq '.data.repository.refs' > repo-metadata/branches.json
+          
+      env:
+        GH_TOKEN: ${{ github.token }}
+
+    - name: Export Issues
+      if: inputs.backup_issues == 'true'
+      shell: bash
+      run: |
+        gh issue list --state all --json number,title,state,body,createdAt,updatedAt,closedAt,labels,assignees,comments > repo-metadata/issues.json
+      env:
+        GH_TOKEN: ${{ github.token }}
+
+    - name: Export Pull Requests
+      if: inputs.backup_prs == 'true'
+      shell: bash
+      run: |
 
         # Pull Requests
         gh pr list --state all --json number,title,state,body,createdAt,closedAt,mergedAt,baseRefName,headRefName,labels > repo-metadata/pull_requests.json
