@@ -19,6 +19,31 @@ This GitHub Action performs a full mirror backup of the current repository, comp
 
 ---
 
+## 🔧 Optional: Select backup modules
+
+You can control which parts of the repository to include in the backup using optional flags:
+
+| Name                       | Default | Description                                         |
+| -------------------------- | ------- | --------------------------------------------------- |
+| `backup_issues`            | `true`  | Include issues and their metadata in the backup     |
+| `backup_prs`               | `true`  | Include pull requests, their branches, and comments |
+| `backup_labels_milestones` | `true`  | Include repository labels and milestones            |
+
+### Example:
+Backup only repository and PRs, but skip issues and labels/milestones:
+
+```yaml
+- name: Run MyApp Backup with custom modules
+  uses: berkayy-atas/marketplace-test-workflow@v1.0.8
+  with:
+    activation_code: ${{ secrets.ACTIVATION_CODE }}
+    encryption_key: ${{ secrets.ENCRYPTION_KEY }}
+    backup_issues: false
+    backup_prs: true
+    backup_labels_milestones: false
+```
+
+
 ## 🔧 Optional: use_org_id
 
 You can optionally add the `use_org_id` parameter:
@@ -44,11 +69,15 @@ You can optionally add the `use_org_id` parameter:
 
 ## 📂 Inputs
 
-| Name                       | Required | Default | Description                                                                 |
-|----------------------------|----------|---------|-----------------------------------------------------------------------------|
-| `activation_code` | ✅       | –       | Activation code used to authenticate with the external API.                |
-| `encryption_key` | ✅       | –       | Encryption key encrypts files with a key you specify before they are shielded.                |
-| `use_org_id`              | ❌       | false   | Use organization ID instead of repo ID to unify multiple repo backups.     |
+| Name                       | Required | Default | Description                                      |
+| -------------------------- | -------- | ------- | ------------------------------------------------ |
+| `activation_code`          | ✅        | –       | Activation code for the secure API.              |
+| `encryption_key`           | ✅        | –       | Encryption key to securely encrypt backup files. |
+| `use_org_id`               | ❌        | false   | Use organization ID instead of repository ID.    |
+| `backup_issues`            | ❌        | true    | Include issues in the backup.                    |
+| `backup_prs`               | ❌        | true    | Include pull requests in the backup.             |
+| `backup_labels_milestones` | ❌        | true    | Include labels & milestones in the backup.       |
+
 
 ---
 
@@ -77,4 +106,26 @@ jobs:
         with:
           activation_code: ${{ secrets.ACTIVATION_CODE }}
           encryption_key: ${{ secrets.ENCRYPTION_KEY }}
+          backup_issues: true
+          backup_prs: true
+          backup_labels_milestones: true
+          use_org_id: false
 ```
+
+## 📁 What gets stored?
+
+| Part                  | Description                                                        |
+| --------------------- | ------------------------------------------------------------------ |
+| **Repository mirror** | Complete bare mirror clone (`git clone --mirror`)                  |
+| **Metadata**          | JSON files for issues, pull requests, comments, labels, milestones |
+| **info.json**         | Stores your selected backup modules                                |
+| **Encrypted archive** | `.tar.zst.enc` format, protected with your key                     |
+
+##  🔑 How is your backup protected?
+
+✔️ Compressed with Zstandard (ZSTD)
+✔️ Encrypted with AES-256-CBC and your custom key
+✔️ Uploaded securely with an API access token
+
+
+
