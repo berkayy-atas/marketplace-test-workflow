@@ -15,6 +15,18 @@ inputs:
     description: 'Set to true to use organization ID instead of repository ID'
     required: false
     default: 'false'
+  backup_issues:
+    description: 'Backup issues'
+    required: false
+    default: 'true'
+  backup_prs:
+    description: 'Backup pull requests'
+    required: false
+    default: 'true'
+  backup_labels_milestones:
+    description: 'Backup labels & milestones'
+    required: false
+    default: 'true'
     
 runs:
   using: 'composite'
@@ -37,16 +49,26 @@ runs:
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
         sudo apt-get install -y gh
 
-    - name: Export Repository Metadata
+    - name: Export Repo Info
       shell: bash
       run: |
         mkdir -p repo-metadata
-
-        # Repo basic info
         gh repo view --json name,description,createdAt,updatedAt,defaultBranchRef,mergeCommitAllowed,rebaseMergeAllowed,squashMergeAllowed > repo-metadata/repo-info.json
+      env:
+        GH_TOKEN: ${{ github.token }}
 
-        # Issues
+    - name: Export Issues
+      if: inputs.backup_issues == 'true'
+      shell: bash
+      run: |
         gh issue list --state all --json number,title,state,body,createdAt,updatedAt,closedAt,labels,assignees,comments > repo-metadata/issues.json
+      env:
+        GH_TOKEN: ${{ github.token }}
+
+    - name: Export Pull Requests
+      if: inputs.backup_prs == 'true'
+      shell: bash
+      run: |
 
         # Branches => sadece nodes array'i sakla!
         gh api graphql -f query='
@@ -75,6 +97,13 @@ runs:
           gh api repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/pulls/$pr_number/comments > "repo-metadata/pr_review_comments_$pr_number.json"
         done
         
+      env:
+        GH_TOKEN: ${{ github.token }}
+
+    - name: Export Labels & Milestones
+      if: inputs.backup_labels_milestones == 'true'
+      shell: bash
+      run: |
         # Labels & Milestones
         gh api graphql -f query='
           {
@@ -98,6 +127,15 @@ runs:
           }' | jq . > repo-metadata/labels_milestones.json
       env:
         GH_TOKEN: ${{ github.token }}
+
+    - name: Create info.json
+      shell: bash
+      run: |
+        echo "{
+          \"issues\": \"${{ inputs.backup_issues }}\",
+          \"pull_requests\": \"${{ inputs.backup_prs }}\",
+          \"labels_milestones\": \"${{ inputs.backup_labels_milestones }}\"
+        }" > repo-metadata/info.json
         
     - name: Encrypt Compressed Repository
       shell: bash
@@ -174,11 +212,20 @@ runs:
           COMMITTER=""
           MESSAGE=""
         fi
+        
+        # info.json'dan oku — backup flags garantili olsun
+        INFO_JSON=$(cat repo-metadata/info.json)
+        ISSUES=$(jq -r '.issues' <<< "$INFO_JSON")
+        PRS=$(jq -r '.pull_requests' <<< "$INFO_JSON")
+        LABELS=$(jq -r '.labels_milestones' <<< "$INFO_JSON")
 
         CURL_ARGS=(
           -F "MetaData[Event]=$EVENT"
           -F "MetaData[Ref]=$REF"
           -F "MetaData[Actor]=$ACTOR"
+          -F "MetaData[BackupIssues]=$ISSUES"
+          -F "MetaData[BackupPRs]=$PRS"
+          -F "MetaData[BackupLabelsMilestones]=$LABELS"
         )
         [ -n "$COMMIT" ] && CURL_ARGS+=(-F "MetaData[Commit]=$COMMIT")
         [ -n "$SHORT" ] && CURL_ARGS+=(-F "MetaData[CommitShort]=$SHORT")
