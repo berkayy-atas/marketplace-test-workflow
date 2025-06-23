@@ -34,7 +34,7 @@ Backup only repository and PRs, but skip issues and labels/milestones:
 
 ```yaml
 - name: Run MyApp Backup with custom modules
-  uses: berkayy-atas/marketplace-test-workflow@v1.0.8
+  uses: berkayy-atas/marketplace-test-workflow@v1.0.15
   with:
     activation_code: ${{ secrets.ACTIVATION_CODE }}
     encryption_key: ${{ secrets.ENCRYPTION_KEY }}
@@ -50,7 +50,7 @@ You can optionally add the `use_org_id` parameter:
 
 ```yaml
 - name: Run MyApp Backup with Org ID
-  uses: berkayy-atas/marketplace-test-workflow@v1.0.8
+  uses: berkayy-atas/marketplace-test-workflow@v1.0.15
   with:
     activation_code: ${{ secrets.ACTIVATION_CODE }}
     encryption_key: ${{ secrets.ENCRYPTION_KEY }}
@@ -102,7 +102,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run MyApp Backup
-        uses: berkayy-atas/marketplace-test-workflow@v1.0.8
+        uses: berkayy-atas/marketplace-test-workflow@v1.0.15
         with:
           activation_code: ${{ secrets.ACTIVATION_CODE }}
           encryption_key: ${{ secrets.ENCRYPTION_KEY }}
