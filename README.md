@@ -8,7 +8,7 @@ This GitHub Action performs a full mirror backup of the current repository, comp
 
 ```yaml
 - name: Run MyApp Backup
-  uses: berkayy-atas/marketplace-test-workflow@v1.0.8
+  uses: berkayy-atas/marketplace-test-workflow@v1.0.15
   with:
     activation_code: ${{ secrets.ACTIVATION_CODE }}
     encryption_key: ${{ secrets.ENCRYPTION_KEY }}
