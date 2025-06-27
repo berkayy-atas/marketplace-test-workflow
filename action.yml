@@ -142,7 +142,7 @@ runs:
         echo "author=$AUTHOR" >> $GITHUB_ENV
         echo "date=$DATE" >> $GITHUB_ENV
         echo "committer=$COMMITTER" >> $GITHUB_ENV
-        echo "message=$MESSAGE" >> $GITHUB_ENV
+        echo "message=$(git log -1 --pretty=format:"%s%n%b" | tr '\n' ' ')" >> $GITHUB_ENV
         
         echo "Backup uploaded successfully."
 
