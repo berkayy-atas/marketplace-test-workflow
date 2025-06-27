@@ -86,8 +86,8 @@ runs:
         EVENT="${{ github.event_name }}"
         REF="${{ github.ref }}"
         ACTOR="${{ github.actor }}"
-        OWNER="${{ github.repository.owner.login }}"
-        OWNER_TYPE="${{ github.repository.owner.type }}"
+        OWNER="${{ github.repository_owner }}"
+        OWNER_TYPE="${{ github.event.repository.owner.type }}"
         
         if git rev-parse --verify HEAD >/dev/null 2>&1; then
           COMMIT=$(git log -1 --pretty=format:"%H")
@@ -168,7 +168,7 @@ runs:
         echo "--------------------------------------------------"
         echo "**Git Metadata**"
         echo "${{ github.repository }}"
-        echo "- Owner: ${{ github.repository.owner.login }} [${{ github.repository.owner.login.type  }} ]"
+        echo "- Owner: ${{ github.repository_owner }} [${{ github.event.repository.owner.type  }} ]"
         echo "- Event: ${{ github.event_name  }}"
         echo "- Ref:   ${{ github.ref }}"
         echo "- Actor: ${{ github.actor }}"
