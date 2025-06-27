@@ -136,7 +136,6 @@ runs:
         RECORD_ID=$(echo "$JSON_BODY" | jq -r '.data.recordId')
         echo "recordId=$RECORD_ID" >> $GITHUB_ENV
 
-        echo "curlArgs=${CURL_ARGS[*]}" >> $GITHUB_ENV
         echo "commit=$COMMIT" >> $GITHUB_ENV
         echo "commitShort=$SHORT" >> $GITHUB_ENV
         echo "parents=$PARENTS" >> $GITHUB_ENV
@@ -156,16 +155,18 @@ runs:
         echo "- Event: ${{ github.event_name  }}"
         echo "- Ref:   ${{ github.ref }}"
         echo "- Actor: ${{ github.actor }}"
+        if [ -n "$commit" ]; then
+          echo
+          echo "**Upload Metadata**"
+        fi
+        if [ -n "$commit" ]; then echo - Commit:      $commit fi
+        if [ -n "$commitShort" ]; then echo "- CommitShort: $commitShort"; fi
+        if [ -n "$parents" ]; then echo "- Parents:     $parents"; fi
         
-        [ -n "${{ steps.shieldRequest.outputs.commit }}" ]     && echo
-        [ -n "${{ steps.shieldRequest.outputs.commit }}" ]     && echo "**Upload Metadata**"
-        [ -n "${{ steps.shieldRequest.outputs.commit }}" ]     && echo "- Commit:      ${{ env.commit }}"
-        [ -n "${{ steps.shieldRequest.outputs.commitShort }}" ] && echo "- CommitShort: ${{ env.commitShort }}"
-        [ -n "${{ steps.shieldRequest.outputs.parents }}" ]     && echo "- Parents:     ${{ env.parents }}"
-        [ -n "${{ steps.shieldRequest.outputs.author }}" ]      && echo "- Author:      ${{ env.author }}"
-        [ -n "${{ steps.shieldRequest.outputs.date }}" ]        && echo "- Date:        ${{ env.date }}"
-        [ -n "${{ steps.shieldRequest.outputs.committer }}" ]   && echo "- Committer:   ${{ env.committer }}"
-        [ -n "${{ steps.shieldRequest.outputs.message }}" ]     && echo "- Message:     ${{ env.message }}"
+        if [ -n "$author" ]; then echo "- Author:      $author"; fi
+        if [ -n "$date" ]; then echo "- Date:        $date"; fi
+        if [ -n "$committer" ]; then echo "- Committer:   $committer"; fi
+        if [ -n "$message" ]; then echo "- Message:     $message"; fi
         echo
         echo "**API Response**"
-        echo "- File version id:           ${{ env.RECORD_ID }}"
+        echo "- File version id: $recordId"
