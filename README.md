@@ -90,7 +90,7 @@ You can optionally add the `use_org_id` parameter:
 
 
 ```yaml
-name: MyApp
+name: "Yedekleme Islemi [${{ github.event_name }}]"
 
 on:
   push:
