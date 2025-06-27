@@ -9,13 +9,23 @@ inputs:
     description: 'Activation code for API'
     required: true
   encryption_key:
-    description: 'Secret key for encrypting the backup'
+    description: 'Secret key for encrypting the backup (min. 32 chars)'
     required: true
  
     
 runs:
   using: 'composite'
   steps:
+  
+    - name: Validate encryption key length
+      shell: bash
+      run: |
+        ENC_KEY="${{ inputs.encryption_key }}"
+        if [ "${#ENC_KEY}" -lt 32 ]; then
+          echo "::error ::The encryption_key must be at least 32 characters long (got ${#ENC_KEY})."
+          exit 1
+        fi
+        
     - name: Checkout Repository
       uses: actions/checkout@v4
       with:
@@ -153,6 +163,7 @@ runs:
         echo
         echo "--------------------------------------------------"
         echo "**Git Metadata**"
+        echo "${{ github.repository }}"
         echo "- Event: ${{ github.event_name  }}"
         echo "- Ref:   ${{ github.ref }}"
         echo "- Actor: ${{ github.actor }}"
