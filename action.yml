@@ -151,17 +151,17 @@ runs:
       run: |
         echo "✅ **Backup completed successfully!**"
         echo
-        echo "**Git Metadata**"
         echo "--------------------------------------------------"
+        echo "**Git Metadata**"
         echo "- Event: ${{ github.event_name  }}"
         echo "- Ref:   ${{ github.ref }}"
         echo "- Actor: ${{ github.actor }}"
         if [ -n "$commit" ]; then
           echo
-          echo "**Upload Metadata**"
           echo "--------------------------------------------------"
+          echo "**Upload Metadata**"
         fi
-        if [ -n "$commit" ]; then echo "- Commit:      $commit"fi
+        if [ -n "$commit" ]; then echo "- Commit:      $commit"; fi
         if [ -n "$commitShort" ]; then echo "- CommitShort: $commitShort"; fi
         if [ -n "$parents" ]; then echo "- Parents:     $parents"; fi
         
@@ -170,6 +170,6 @@ runs:
         if [ -n "$committer" ]; then echo "- Committer:   $committer"; fi
         if [ -n "$message" ]; then echo "- Message:     $message"; fi
         echo
-        echo "**API Response**"
         echo "--------------------------------------------------"
+        echo "**API Response**"
         echo "- File version id: $recordId"
