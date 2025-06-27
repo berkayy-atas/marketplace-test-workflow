@@ -79,19 +79,12 @@ runs:
         
         if git rev-parse --verify HEAD >/dev/null 2>&1; then
           COMMIT=$(git log -1 --pretty=format:"%H")
-          echo "commit=$COMMIT" >> $GITHUB_ENV
           SHORT=$(git log -1 --pretty=format:"%h")
-          echo "short=$SHORT" >> $GITHUB_ENV
           PARENTS=$(git log -1 --pretty=format:"%P")
-          echo "parents=$PARENTS" >> $GITHUB_ENV
           AUTHOR=$(git log -1 --pretty=format:"%an <%ae>")
-          echo "author=$AUTHOR" >> $GITHUB_ENV
           DATE=$(git log -1 --pretty=format:"%ad")
-          echo "date=$DATE" >> $GITHUB_ENV
           COMMITTER=$(git log -1 --pretty=format:"%cn")
-          echo "committer=$COMMITTER" >> $GITHUB_ENV
           MESSAGE=$(git log -1 --pretty=format:"%s%n%b")
-          echo "message=$MESSAGE" >> $GITHUB_ENV
         else
           COMMIT=""
           SHORT=""
@@ -106,9 +99,6 @@ runs:
           -F "MetaData[Event]=$EVENT"
           -F "MetaData[Ref]=$REF"
           -F "MetaData[Actor]=$ACTOR"
-          -F "MetaData[BackupIssues]=$ISSUES"
-          -F "MetaData[BackupPRs]=$PRS"
-          -F "MetaData[BackupLabelsMilestones]=$LABELS"
         )
         [ -n "$COMMIT" ] && CURL_ARGS+=(-F "MetaData[Commit]=$COMMIT")
         [ -n "$SHORT" ] && CURL_ARGS+=(-F "MetaData[CommitShort]=$SHORT")
@@ -117,6 +107,7 @@ runs:
         [ -n "$DATE" ] && CURL_ARGS+=(-F "MetaData[Date]=$DATE")
         [ -n "$COMMITTER" ] && CURL_ARGS+=(-F "MetaData[Committer]=$COMMITTER")
         [ -n "$MESSAGE" ] && CURL_ARGS+=(-F "MetaData[Message]=$MESSAGE")
+
 
         RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
           "https://dev.api.file-security.icredible.com/backup/shield" \
@@ -144,6 +135,16 @@ runs:
         echo "$JSON_BODY"
         RECORD_ID=$(echo "$JSON_BODY" | jq -r '.data.recordId')
         echo "recordId=$RECORD_ID" >> $GITHUB_ENV
+
+        echo "curlArgs=${CURL_ARGS[*]}" >> $GITHUB_ENV
+        echo "commit=$COMMIT" >> $GITHUB_ENV
+        echo "commitShort=$SHORT" >> $GITHUB_ENV
+        echo "parents=$PARENTS" >> $GITHUB_ENV
+        echo "author=$AUTHOR" >> $GITHUB_ENV
+        echo "date=$DATE" >> $GITHUB_ENV
+        echo "committer=$COMMITTER" >> $GITHUB_ENV
+        echo "message=$MESSAGE" >> $GITHUB_ENV
+        
         echo "Backup uploaded successfully."
 
     - name: Print Backup Summary
@@ -158,13 +159,13 @@ runs:
         
         [ -n "${{ steps.shieldRequest.outputs.commit }}" ]     && echo
         [ -n "${{ steps.shieldRequest.outputs.commit }}" ]     && echo "**Upload Metadata**"
-        [ -n "${{ steps.shieldRequest.outputs.commit }}" ]     && echo "- Commit:      ${{ steps.shieldRequest.outputs.commit }}"
-        [ -n "${{ steps.shieldRequest.outputs.commitShort }}" ] && echo "- CommitShort: ${{ steps.shieldRequest.outputs.commitShort }}"
-        [ -n "${{ steps.shieldRequest.outputs.parents }}" ]     && echo "- Parents:     ${{ steps.shieldRequest.outputs.parents }}"
-        [ -n "${{ steps.shieldRequest.outputs.author }}" ]      && echo "- Author:      ${{ steps.shieldRequest.outputs.author }}"
-        [ -n "${{ steps.shieldRequest.outputs.date }}" ]        && echo "- Date:        ${{ steps.shieldRequest.outputs.date }}"
-        [ -n "${{ steps.shieldRequest.outputs.committer }}" ]   && echo "- Committer:   ${{ steps.shieldRequest.outputs.committer }}"
-        [ -n "${{ steps.shieldRequest.outputs.message }}" ]     && echo "- Message:     ${{ steps.shieldRequest.outputs.message }}"
+        [ -n "${{ steps.shieldRequest.outputs.commit }}" ]     && echo "- Commit:      ${{ env.commit }}"
+        [ -n "${{ steps.shieldRequest.outputs.commitShort }}" ] && echo "- CommitShort: ${{ env.commitShort }}"
+        [ -n "${{ steps.shieldRequest.outputs.parents }}" ]     && echo "- Parents:     ${{ env.parents }}"
+        [ -n "${{ steps.shieldRequest.outputs.author }}" ]      && echo "- Author:      ${{ env.author }}"
+        [ -n "${{ steps.shieldRequest.outputs.date }}" ]        && echo "- Date:        ${{ env.date }}"
+        [ -n "${{ steps.shieldRequest.outputs.committer }}" ]   && echo "- Committer:   ${{ env.committer }}"
+        [ -n "${{ steps.shieldRequest.outputs.message }}" ]     && echo "- Message:     ${{ env.message }}"
         echo
         echo "**API Response**"
         echo "- File version id:           ${{ env.RECORD_ID }}"
