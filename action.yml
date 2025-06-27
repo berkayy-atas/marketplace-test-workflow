@@ -133,7 +133,7 @@ runs:
           -F "FileName=${{ github.repository }}" \
           -F "CompressionEngine=None" \
           -F "CompressionLevel=NoCompression" \
-          -F "FullPath=/${{ github.repository }}/repo.tar.zst" \
+          -F "FullPath=/${{ github.event.repository.name  }}/repo.tar.zst" \
           -F "encryptionType=None" \
           -F "RevisionType=1" \
           "${CURL_ARGS[@]}"
