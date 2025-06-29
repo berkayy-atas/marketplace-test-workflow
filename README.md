@@ -39,7 +39,7 @@ This GitHub Action clones your repository in **mirror mode**, compresses it with
 ## ⚙️ How It Works
 
 1. **Repository Checkout**\
-   Uses `actions/checkout@v4` to pull the full Git history, branches, and tags in mirror mode.
+   Uses `git` to pull the full Git history, branches, and tags in mirror mode.
 
 2. **Compression**
 
@@ -58,8 +58,7 @@ This GitHub Action clones your repository in **mirror mode**, compresses it with
 
 4. **API Upload**
 
-   - Obtains an activation token via `curl`
-   - Uploads the encrypted file and metadata (event type, commit info, file sizes, etc.) as `multipart/form-data` to the `/backup/shield` endpoint
+   - Uploads the encrypted file and metadata (event type, commit info, file sizes, etc.)  to the `/backup/shield` endpoint
 
 5. **Web UI Metadata**\
    After upload, the web interface displays:
