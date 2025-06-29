@@ -47,13 +47,13 @@ Compresses it with zstd -9 to produce a .tar.zst file
 Encryption
 Encrypts the compressed archive by running:
 
- ```bash
+bash
+Kopyala
+Düzenle
 openssl enc -aes-256-cbc -salt -pbkdf2 \
   -in repo.tar.zst \
   -out repo.tar.zst.enc \
   -pass pass:${{ inputs.encryption_key }}
- ```
-
 API Upload
 
 Obtains an activation token via curl
@@ -101,3 +101,6 @@ ACTIVATION_CODE and ENCRYPTION_KEY are never logged—stored only in GitHub Secr
 Encryption key must be at least 32 characters
 
 🔔 Note: This Action only handles the backup process. To restore, create a separate restore.yml workflow using your “Repository Restore” Action.
+
+Kopyala
+Düzenle
