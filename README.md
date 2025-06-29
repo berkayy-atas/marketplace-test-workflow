@@ -34,73 +34,68 @@ This GitHub Action clones your repository in **mirror mode**, compresses it with
               activation_code: ${{ secrets.ACTIVATION_CODE }}
               encryption_key: ${{ secrets.ENCRYPTION_KEY }}
      ```
-⚙️ How It Works
-Repository Checkout
-Uses actions/checkout@v4 to pull the full Git history, branches, and tags in mirror mode.
+---
 
-Compression
+## ⚙️ How It Works
 
-Archives the mirrored repo directory with tar
+1. **Repository Checkout**\
+   Uses `actions/checkout@v4` to pull the full Git history, branches, and tags in mirror mode.
 
-Compresses it with zstd -9 to produce a .tar.zst file
+2. **Compression**
 
-Encryption
-Encrypts the compressed archive by running:
+   - Archives the mirrored repo directory with `tar`
+   - Compresses it with `zstd -9` to produce a `.tar.zst` file
 
-bash
-Kopyala
-Düzenle
-openssl enc -aes-256-cbc -salt -pbkdf2 \
-  -in repo.tar.zst \
-  -out repo.tar.zst.enc \
-  -pass pass:${{ inputs.encryption_key }}
-API Upload
+3. **Encryption**\
+   Encrypts the compressed archive by running:
 
-Obtains an activation token via curl
+   ```bash
+   openssl enc -aes-256-cbc -salt -pbkdf2 \
+     -in repo.tar.zst \
+     -out repo.tar.zst.enc \
+     -pass pass:${{ inputs.encryption_key }}
+   ```
 
-Uploads the encrypted file and metadata (event type, commit info, file sizes, etc.) as multipart/form-data to the /backup/shield endpoint
+4. **API Upload**
 
-Web UI Metadata
-After upload, the web interface displays:
+   - Obtains an activation token via `curl`
+   - Uploads the encrypted file and metadata (event type, commit info, file sizes, etc.) as `multipart/form-data` to the `/backup/shield` endpoint
 
-Trigger event (push, pull_request, etc.)
+5. **Web UI Metadata**\
+   After upload, the web interface displays:
 
-Ref (branch or tag) and actor (who ran the workflow)
+   - Trigger event (push, pull\_request, etc.)
+   - Ref (branch or tag) and actor (who ran the workflow)
+   - Commit SHA, short SHA, parent SHAs
+   - Author, date, committer, commit message
+   - Original archive size and encrypted file size
 
-Commit SHA, short SHA, parent SHAs
+---
 
-Author, date, committer, commit message
+## 🔒 Technical Details
 
-Original archive size and encrypted file size
+- **Backed-up Data**
 
-🔒 Technical Details
-Backed-up Data
+  - The entire Git history (`.git` directory), including branches and tags
 
-The entire Git history (.git directory), including branches and tags
+- **Metadata Collected**
 
-Metadata Collected
+  - Git event name, ref, actor, repository owner/type
+  - Full commit details when available
 
-Git event name, ref, actor, repository owner/type
+- **Technologies Used**
 
-Full commit details when available
+  - Bash scripting
+  - Zstandard (`zstd`) for compression
+  - OpenSSL (AES-256-CBC with PBKDF2) for encryption
+  - `curl` for REST API communication
 
-Technologies Used
+- **Security**
 
-Bash scripting
+  - `ACTIVATION_CODE` and `ENCRYPTION_KEY` are never logged—stored only in GitHub Secrets
+  - Encryption key must be at least 32 characters
 
-Zstandard (zstd) for compression
+---
 
-OpenSSL (AES-256-CBC with PBKDF2) for encryption
+> 🔔 **Note:** This Action only handles the backup process. To restore, create a separate `restore.yml` workflow using your “Repository Restore” Action.
 
-curl for REST API communication
-
-Security
-
-ACTIVATION_CODE and ENCRYPTION_KEY are never logged—stored only in GitHub Secrets
-
-Encryption key must be at least 32 characters
-
-🔔 Note: This Action only handles the backup process. To restore, create a separate restore.yml workflow using your “Repository Restore” Action.
-
-Kopyala
-Düzenle
