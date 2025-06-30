@@ -31,13 +31,14 @@ runs:
       with:
         fetch-depth: 0
         ref: ${{ github.ref }}
-        fetch-branches: true
-    
-    - name: Fetch All Branches
+
+    - name: Fetch All Branches and Tags
       shell: bash
       run: |
         git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
-        git fetch origin --prune --tags --force
+        git fetch --prune --tags --force
+        echo "All branches:"
+        git branch -a
     
     - name: Clone Repository in Mirror Mode
       shell: bash
