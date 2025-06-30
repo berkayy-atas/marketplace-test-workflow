@@ -32,17 +32,22 @@ runs:
         fetch-depth: 0
         ref: ${{ github.ref }}
 
-    - name: Fetch All Branches and Tags
+    - name: Configure Repository for Full Mirror
       shell: bash
       run: |
         git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
-        git fetch --prune --tags --force
-        echo "All branches:"
-        git branch -a
-    
+        git config remote.origin.tagopt --tags
+        git fetch origin --prune --tags --force
+
     - name: Clone Repository in Mirror Mode
       shell: bash
-      run: git clone --mirror . repo-mirror
+      run: |
+        git clone --mirror "file://$(pwd)" repo-mirror
+        cd repo-mirror
+        echo "--- Mirror Branches ---"
+        git branch -a
+        echo "--- Mirror Tags ---"
+        git tag -l
 
     - name: Install Dependencies
       shell: bash
