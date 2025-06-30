@@ -38,6 +38,13 @@ runs:
         git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
         git config remote.origin.tagopt --tags
         git fetch origin --prune --tags --force
+        
+        git for-each-ref --format='%(refname:short)' refs/remotes/origin | grep -v HEAD | while read branch; do
+            b=${branch#origin/}
+            if ! git show-ref --quiet refs/heads/"$b"; then
+                git branch "$b" "$branch"
+            fi
+        done
 
     - name: Clone Repository in Mirror Mode
       shell: bash
