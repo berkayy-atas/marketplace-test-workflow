@@ -9,8 +9,8 @@ This GitHub Action clones your repository in **mirror mode**, compresses it with
    - Create a new secret named `ACTIVATION_CODE`  
    - Paste in the activation code provided by your API service
 
-2. **Store your Encryption Key** as a GitHub Secret  
-   - Create a new secret named `ENCRYPTION_KEY`  
+2. **Store your Encryption PASSWORD** as a GitHub Secret  
+   - Create a new secret named `ENCRYPTION_PASSWORD`  
    - Use a strong key of **at least 32 characters**
 
 3. **Add your workflow file**  
@@ -32,7 +32,7 @@ This GitHub Action clones your repository in **mirror mode**, compresses it with
             uses: berkayy-atas/marketplace-test-workflow@v1.0.19
             with:
               activation_code: ${{ secrets.ACTIVATION_CODE }}
-              encryption_key: ${{ secrets.ENCRYPTION_KEY }}
+              encryption_password: ${{ secrets.ENCRYPTION_PASSWORD }}
      ```
 ---
 
@@ -53,7 +53,7 @@ This GitHub Action clones your repository in **mirror mode**, compresses it with
    openssl enc -aes-256-cbc -salt -pbkdf2 \
      -in repo.tar.zst \
      -out repo.tar.zst.enc \
-     -pass pass:${{ inputs.encryption_key }}
+     -pass pass:${{ inputs.encryption_password }}
    ```
 
 4. **API Upload**
@@ -91,8 +91,8 @@ This GitHub Action clones your repository in **mirror mode**, compresses it with
 
 - **Security**
 
-  - `ACTIVATION_CODE` and `ENCRYPTION_KEY` are never logged—stored only in GitHub Secrets
-  - Encryption key must be at least 32 characters
+  - `ACTIVATION_CODE` and `ENCRYPTION_PASSWORD` are never logged—stored only in GitHub Secrets
+  - Encryption password must be at least 32 characters
 
 ---
 
