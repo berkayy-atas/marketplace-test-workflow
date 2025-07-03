@@ -97,8 +97,9 @@ runs:
           echo "Activation failed: $JSON_BODY"
           exit 1
         fi
-        TOKEN=$(echo "$JSON_BODY" | jq -r '.data.token')
-        echo "TOKEN=$TOKEN" >> $GITHUB_ENV
+
+        echo "endpointId=$(echo "$JSON_BODY" | jq -r '.data.endpointId')" >> $GITHUB_ENV
+        echo "TOKEN=$(echo "$JSON_BODY" | jq -r '.data.token')" >> $GITHUB_ENV
 
     - name: Upload Backup to Shield API (with dynamic commit meta)
       id: shieldRequest
@@ -169,7 +170,9 @@ runs:
        
         echo "$JSON_BODY"
         RECORD_ID=$(echo "$JSON_BODY" | jq -r '.data.recordId')
+        DIRECTORY_RECORD_ID=$(echo "$JSON_BODY" | jq -r '.data.directoryRecordId')
         echo "recordId=$RECORD_ID" >> $GITHUB_ENV
+        echo "directoryRecordId=$DIRECTORY_RECORD_ID" >> $GITHUB_ENV
 
         echo "commit=$COMMIT" >> $GITHUB_ENV
         echo "commitShort=$SHORT" >> $GITHUB_ENV
@@ -210,3 +213,4 @@ runs:
         echo "--------------------------------------------------"
         echo "**API Response**"
         echo "- File version id: $recordId"
+        echo "- You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}  "
