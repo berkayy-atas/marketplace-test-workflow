@@ -8,7 +8,7 @@ inputs:
   activation_code:
     description: 'Activation code for API'
     required: true
-  encryption_key:
+  encryption_password:
     description: 'Secret key for encrypting the backup (min. 32 chars)'
     required: true
  
@@ -17,12 +17,12 @@ runs:
   using: 'composite'
   steps:
   
-    - name: Validate encryption key length
+    - name: Validate encryption password length
       shell: bash
       run: |
-        ENC_KEY="${{ inputs.encryption_key }}"
+        ENC_KEY="${{ inputs.encryption_password }}"
         if [ "${#ENC_KEY}" -lt 32 ]; then
-          echo "::error ::The encryption_key must be at least 32 characters long (got ${#ENC_KEY})."
+          echo "::error ::The encryption_password must be at least 32 characters long (got ${#ENC_KEY})."
           exit 1
         fi
         
@@ -71,7 +71,7 @@ runs:
 
         tar -cf repo.tar repo-mirror
         zstd -9 repo.tar -o repo.tar.zst
-        openssl enc -aes-256-cbc -salt -pbkdf2 -in repo.tar.zst -out "$ENC_FILE_NAME" -pass pass:${{ inputs.encryption_key }}
+        openssl enc -aes-256-cbc -salt -pbkdf2 -in repo.tar.zst -out "$ENC_FILE_NAME" -pass pass:${{ inputs.encryption_password }}
 
         echo "ENC_FILE_NAME=$ENC_FILE_NAME" >> $GITHUB_ENV
         echo "UNCOMPRESSED_SIZE=$(stat --printf='%s' repo.tar)" >> $GITHUB_ENV
