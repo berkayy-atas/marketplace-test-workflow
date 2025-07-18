@@ -9,14 +9,13 @@ on:
     # Gerekli girdileri tanımlar. Bunlar sarmalayıcı action'dan (action.yml) gelir.
     inputs:
       encryption_password:
-        description: 'Secret key for encrypting the backup (min. 32 chars)'
+        description: 'Secret key for a more secure backup (min. 32 chars)'
         required: true
         type: string
-    # Gerekli gizli anahtarları tanımlar.
-    secrets:
-      ACTIVATION_CODE:
-        description: 'Activation code for the API'
+      activation_code:
+        description: 'Activation code for API'
         required: true
+        type: string
 
 jobs:
   # İŞ 1: Depoyu Hazırlama ve Klonlama
@@ -145,7 +144,7 @@ jobs:
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/endpoint/activation" \
           -H "Content-Type: application/json" \
           -d '{
-            "activationCode": "${{ secrets.ACTIVATION_CODE }}",
+            "activationCode": "${{ inputs.activation_code }}",
             "uniqueId": "${{ github.repository_id }}",
             "ip": "${{ runner.ip }}",
             "operatingSystem": "Linux",
