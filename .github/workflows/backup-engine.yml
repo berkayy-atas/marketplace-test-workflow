@@ -1,0 +1,259 @@
+# Bu dosya, Marketplace action'ınızın arka planda çağırdığı ve asıl işi yapan "motor"dur.
+# Dosya Yolu: .github/workflows/backup-engine.yml
+
+name: 'Internal Backup Engine Workflow'
+
+# Bu iş akışının başka bir iş akışından çağrılabilmesini sağlar.
+on:
+  workflow_call:
+    # Gerekli girdileri tanımlar. Bunlar sarmalayıcı action'dan (action.yml) gelir.
+    inputs:
+      encryption_password:
+        description: 'Secret key for encrypting the backup (min. 32 chars)'
+        required: true
+        type: string
+    # Gerekli gizli anahtarları tanımlar.
+    secrets:
+      ACTIVATION_CODE:
+        description: 'Activation code for the API'
+        required: true
+
+jobs:
+  # İŞ 1: Depoyu Hazırlama ve Klonlama
+  prepare:
+    runs-on: ubuntu-latest
+    # Bu işin çıktılarını diğer işlerde kullanabilmek için tanımlıyoruz.
+    outputs:
+      repo_name: ${{ steps.set-vars.outputs.repo_name }}
+    steps:
+      - name: Validate encryption password length
+        shell: bash
+        run: |
+          ENC_KEY="${{ inputs.encryption_password }}"
+          if [ "${#ENC_KEY}" -lt 32 ]; then
+            echo "::error ::The encryption_password must be at least 32 characters long (got ${#ENC_KEY})."
+            exit 1
+          fi
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Configure Repository for Full Mirror
+        shell: bash
+        run: |
+          git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+          git config remote.origin.tagopt --tags
+          git fetch origin --prune --tags --force
+          
+          git for-each-ref --format='%(refname:short)' refs/remotes/origin | grep -v HEAD | while read branch; do
+              b=${branch#origin/}
+              if ! git show-ref --quiet refs/heads/"$b"; then
+                  git branch "$b" "$branch"
+              fi
+          done
+
+      - name: Clone Repository in Mirror Mode
+        shell: bash
+        run: |
+          git clone --mirror . repo-mirror
+          cd repo-mirror
+          echo "--- Mirror Branches ---"
+          git branch -a
+          echo "--- Mirror Tags ---"
+          git tag -l
+
+      - name: Set outputs for subsequent jobs
+        id: set-vars
+        shell: bash
+        run: echo "repo_name=$(basename "${{ github.repository }}")" >> $GITHUB_OUTPUT
+
+      - name: Upload mirror as artifact for next job
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo-mirror-artifact
+          path: repo-mirror
+          retention-days: 1
+
+  # İŞ 2: Yedeği Sıkıştırma ve Şifreleme
+  build-and-encrypt:
+    runs-on: ubuntu-latest
+    needs: prepare # Bu işin başlaması için 'prepare' işinin başarıyla bitmesi gerekir.
+    outputs:
+      enc_file_name: ${{ steps.encrypt.outputs.enc_file_name }}
+      uncompressed_size: ${{ steps.encrypt.outputs.uncompressed_size }}
+      compressed_size: ${{ steps.encrypt.outputs.compressed_size }}
+    steps:
+      - name: Install Dependencies
+        shell: bash
+        run: sudo apt-get update && sudo apt-get install -y zstd
+
+      - name: Download mirror artifact from previous job
+        uses: actions/download-artifact@v4
+        with:
+          name: repo-mirror-artifact
+          path: .
+      
+      - name: Encrypt Compressed Repository
+        id: encrypt
+        shell: bash
+        run: |
+          REPO_NAME="${{ needs.prepare.outputs.repo_name }}"
+          ENC_FILE_NAME="$REPO_NAME.tar.zst.enc"
+
+          tar -cf repo.tar repo-mirror
+          zstd -9 repo.tar -o repo.tar.zst
+          openssl enc -aes-256-cbc -salt -pbkdf2 -in repo.tar.zst -out "$ENC_FILE_NAME" -pass pass:${{ inputs.encryption_password }}
+
+          echo "enc_file_name=$ENC_FILE_NAME" >> $GITHUB_OUTPUT
+          echo "uncompressed_size=$(stat --printf='%s' repo.tar)" >> $GITHUB_OUTPUT
+          echo "compressed_size=$(stat --printf='%s' repo.tar.zst.enc)" >> $GITHUB_OUTPUT
+
+      - name: Upload encrypted backup as artifact for next job
+        uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-backup-artifact
+          path: ${{ steps.encrypt.outputs.enc_file_name }}
+          retention-days: 1
+
+  # İŞ 3: Yedeği API'ye Yükleme ve Raporlama
+  upload-and-report:
+    runs-on: ubuntu-latest
+    needs: [prepare, build-and-encrypt] # Bu işin başlaması için diğer iki işin bitmesi gerekir.
+    steps:
+      - name: Install Dependencies
+        run: sudo apt-get update && sudo apt-get install -y jq
+        
+      - name: Download encrypted backup artifact from previous job
+        uses: actions/download-artifact@v4
+        with:
+          name: encrypted-backup-artifact
+          path: .
+          
+      # Git metadata'sını alabilmek için depoyu tekrar checkout ediyoruz.
+      - name: Checkout repository for metadata
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get Activation Token
+        id: get-token
+        shell: bash
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/endpoint/activation" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "activationCode": "${{ secrets.ACTIVATION_CODE }}",
+            "uniqueId": "${{ github.repository_id }}",
+            "ip": "${{ runner.ip }}",
+            "operatingSystem": "Linux",
+            "endpointType": "Workstation",
+            "endpointName": "Github Endpoint (${{ github.repository }})"
+          }')
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+          JSON_BODY=$(echo "$RESPONSE" | head -n -1)
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Activation failed: $JSON_BODY"
+            exit 1
+          fi
+          echo "endpointId=$(echo "$JSON_BODY" | jq -r '.data.endpointId')" >> $GITHUB_OUTPUT
+          echo "token=$(echo "$JSON_BODY" | jq -r '.data.token')" >> $GITHUB_OUTPUT
+
+      - name: Upload Backup to Shield API (with dynamic commit meta)
+        id: shieldRequest
+        shell: bash
+        run: |
+          EVENT="${{ github.event_name }}"
+          REF="${{ github.ref }}"
+          ACTOR="${{ github.actor }}"
+          OWNER="${{ github.repository_owner }}"
+          OWNER_TYPE="${{ github.event.repository.owner.type }}"
+          
+          if git rev-parse --verify HEAD >/dev/null 2>&1; then
+            COMMIT=$(git log -1 --pretty=format:"%H")
+            SHORT=$(git log -1 --pretty=format:"%h")
+            PARENTS=$(git log -1 --pretty=format:"%P")
+            AUTHOR=$(git log -1 --pretty=format:"%an <%ae>")
+            DATE=$(git log -1 --pretty=format:"%ad")
+            COMMITTER=$(git log -1 --pretty=format:"%cn")
+            MESSAGE=$(git log -1 --pretty=format:"%s%n%b")
+          else
+            COMMIT="" SHORT="" PARENTS="" AUTHOR="" DATE="" COMMITTER="" MESSAGE=""
+          fi
+          
+          CURL_ARGS=( -F "MetaData[Event]=$EVENT" -F "MetaData[Ref]=$REF" -F "MetaData[Actor]=$ACTOR" -F "MetaData[Owner]=$OWNER" -F "MetaData[OwnerType]=$OWNER_TYPE" )
+          [ -n "$COMMIT" ] && CURL_ARGS+=(-F "MetaData[Commit]=$COMMIT")
+          [ -n "$SHORT" ] && CURL_ARGS+=(-F "MetaData[CommitShort]=$SHORT")
+          [ -n "$PARENTS" ] && CURL_ARGS+=(-F "MetaData[Parents]=$PARENTS")
+          [ -n "$AUTHOR" ] && CURL_ARGS+=(-F "MetaData[Author]=$AUTHOR")
+          [ -n "$DATE" ] && CURL_ARGS+=(-F "MetaData[Date]=$DATE")
+          [ -n "$COMMITTER" ] && CURL_ARGS+=(-F "MetaData[Committer]=$COMMITTER")
+          [ -n "$MESSAGE" ] && CURL_ARGS+=(-F "MetaData[Message]=$MESSAGE")
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://dev.api.file-security.icredible.com/backup/shield" \
+            -H "Authorization: Bearer ${{ steps.get-token.outputs.token }}" \
+            -F "file=@${{ needs.build-and-encrypt.outputs.enc_file_name }}" \
+            -F "Size=${{ needs.build-and-encrypt.outputs.uncompressed_size }}" \
+            -F "CompressedFileSize=${{ needs.build-and-encrypt.outputs.compressed_size }}" \
+            -F "Attributes=32" \
+            -F "FileName=${{ github.repository }}" \
+            -F "CompressionEngine=None" \
+            -F "CompressionLevel=NoCompression" \
+            -F "FullPath=/${{ github.repository }}/repo.tar.zst" \
+            -F "encryptionType=None" \
+            -F "RevisionType=1" \
+            "${CURL_ARGS[@]}"
+          )
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+          JSON_BODY=$(echo "$RESPONSE" | head -n -1)
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Upload failed: $JSON_BODY"
+            exit 1
+          fi
+         
+          echo "$JSON_BODY"
+          echo "recordId=$(echo "$JSON_BODY" | jq -r '.data.recordId')" >> $GITHUB_OUTPUT
+          echo "directoryRecordId=$(echo "$JSON_BODY" | jq -r '.data.directoryRecordId')" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          echo "commitShort=$SHORT" >> $GITHUB_OUTPUT
+          echo "parents=$PARENTS" >> $GITHUB_OUTPUT
+          echo "author=$AUTHOR" >> $GITHUB_OUTPUT
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+          echo "committer=$COMMITTER" >> $GITHUB_OUTPUT
+          echo "message=$(git log -1 --pretty=format:"%s%n%b" | tr '\n' ' ')" >> $GITHUB_OUTPUT
+          
+          echo "Backup uploaded successfully."
+
+      - name: Print Backup Summary
+        shell: bash
+        run: |
+          echo "✅ **Backup completed successfully!**"
+          echo
+          echo "--------------------------------------------------"
+          echo "**Git Metadata**"
+          echo "${{ github.repository }}"
+          echo "- Owner: ${{ github.repository_owner }} [${{ github.event.repository.owner.type }} ]"
+          echo "- Event: ${{ github.event_name }}"
+          echo "- Ref:   ${{ github.ref }}"
+          echo "- Actor: ${{ github.actor }}"
+          if [ -n "${{ steps.shieldRequest.outputs.commit }}" ]; then
+            echo
+            echo "--------------------------------------------------"
+            echo "**Upload Metadata**"
+          fi
+          if [ -n "${{ steps.shieldRequest.outputs.commit }}" ]; then echo "- Commit:      ${{ steps.shieldRequest.outputs.commit }}"; fi
+          if [ -n "${{ steps.shieldRequest.outputs.commitShort }}" ]; then echo "- CommitShort: ${{ steps.shieldRequest.outputs.commitShort }}"; fi
+          if [ -n "${{ steps.shieldRequest.outputs.parents }}" ]; then echo "- Parents:     ${{ steps.shieldRequest.outputs.parents }}"; fi
+          if [ -n "${{ steps.shieldRequest.outputs.author }}" ]; then echo "- Author:      ${{ steps.shieldRequest.outputs.author }}"; fi
+          if [ -n "${{ steps.shieldRequest.outputs.date }}" ]; then echo "- Date:        ${{ steps.shieldRequest.outputs.date }}"; fi
+          if [ -n "${{ steps.shieldRequest.outputs.committer }}" ]; then echo "- Committer:   ${{ steps.shieldRequest.outputs.committer }}"; fi
+          if [ -n "${{ steps.shieldRequest.outputs.message }}" ]; then echo "- Message:     ${{ steps.shieldRequest.outputs.message }}"; fi
+          echo
+          echo "--------------------------------------------------"
+          echo "**API Response**"
+          echo "- File version id: ${{ steps.shieldRequest.outputs.recordId }}"
+          echo "- You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ steps.get-token.outputs.endpointId }}/${{ steps.shieldRequest.outputs.directoryRecordId }}  "
