@@ -1,23 +1,23 @@
 name: 'MyApp Backup Action'
-description: 'Repository mirror backup, ZSTD compression, and API upload. Optionally uses org ID.'
+description: 'Initiates a multi-job repository backup process.'
 branding:
   icon: 'archive'
   color: 'blue'
 
 inputs:
   activation_code:
-    description: 'Activation code for API (passed as a secret)'
+    description: 'Activation code for API'
     required: true
   encryption_password:
-    description: 'Secret key for encrypting the backup (min. 32 chars)'
+    description: 'Secret key for a more secure backup (min. 32 chars)'
     required: true
 
 runs:
   using: "composite"
   steps:
     - name: Invoke the multi-job backup engine
-      uses: ${{ github.action_repository }}/.github/workflows/backup-engine.yml@${{ github.action_ref }}
+      uses: berkayy-atas/marketplace-test-workflow/.github/workflows/backup-engine.yml@main
       with:
         encryption_password: ${{ inputs.encryption_password }}
-      secrets:
-        ACTIVATION_CODE: ${{ inputs.activation_code }}
+        activation_code: ${{ inputs.activation_code }}
+    
