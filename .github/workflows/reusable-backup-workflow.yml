@@ -14,7 +14,7 @@ on:
         
 # Her iş akışı çalıştırması için benzersiz bir önbellek anahtarı tanımlıyoruz.
 env:
-  BACKUP_CACHE_KEY: backup-cache-${{ github.run_id }}
+  BACKUP_CACHE_KEY: backup-cache-${{ github.run_id }}-
 
 jobs:
 
