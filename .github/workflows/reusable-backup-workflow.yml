@@ -4,19 +4,17 @@ name: Reusable Backup Workflow with Cache
 
 on:
   workflow_call:
-    inputs:
+    secrets:
       activation_code:
         description: 'Activation code for the backup service'
         required: true
-        type: string
       encryption_password:
         description: 'Password to encrypt the backup archive'
         required: true
-        type: string
-
+        
 # Her iş akışı çalıştırması için benzersiz bir önbellek anahtarı tanımlıyoruz.
 env:
-  BACKUP_CACHE_KEY: backup-cache-${{ github.run_id }}-${{ inputs.backup-file-name }}
+  BACKUP_CACHE_KEY: backup-cache-${{ github.run_id }}
 
 jobs:
 
@@ -26,7 +24,7 @@ jobs:
       - name: Validate encryption password length
         shell: bash
         run: |
-          ENC_KEY="${{ inputs.encryption_password }}"
+          ENC_KEY="${{ secrets.encryption_password }}"
           if [ "${#ENC_KEY}" -lt 32 ]; then
             echo "::error ::The encryption_password must be at least 32 characters long (got ${#ENC_KEY})."
             exit 1
@@ -76,7 +74,7 @@ jobs:
 
           tar -cf repo.tar repo-mirror
           zstd -9 repo.tar -o repo.tar.zst
-          openssl enc -aes-256-cbc -salt -pbkdf2 -in repo.tar.zst -out "$ENC_FILE_NAME" -pass pass:${{ inputs.encryption_password }}
+          openssl enc -aes-256-cbc -salt -pbkdf2 -in repo.tar.zst -out "$ENC_FILE_NAME" -pass pass:${{ secrets.encryption_password }}
 
           echo "ENC_FILE_NAME=$ENC_FILE_NAME" >> $GITHUB_ENV
 
@@ -112,7 +110,7 @@ jobs:
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/endpoint/activation" \
           -H "Content-Type: application/json" \
           -d '{
-            "activationCode": "${{ inputs.activation_code }}",
+            "activationCode": "${{ secrets.activation_code }}",
             "uniqueId": "${{ github.repository_id }}",
             "ip": "${{ runner.ip }}",
             "operatingSystem": "Linux",
