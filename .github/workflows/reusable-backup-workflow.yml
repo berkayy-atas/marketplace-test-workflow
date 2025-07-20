@@ -240,32 +240,45 @@ jobs:
           message: ${{ steps.shieldRequest.outputs.message }}
           endpointId: ${{ steps.activation.outputs.endpointId }}
         run: |
-          echo "::notice ::✅ **Backup completed successfully!**"
-          echo "::notice ::"
-          echo "::notice ::--------------------------------------------------"
-          echo "::notice ::**Git Metadata**"
-          echo "::notice ::Repository: ${{ github.repository }}"
-          echo "::notice ::- Owner: ${{ github.repository_owner }} [${{ github.event.repository.owner.type }}]"
-          echo "::notice ::- Event: ${{ github.event_name }}"
-          echo "::notice ::- Ref:   ${{ github.ref }}"
-          echo "::notice ::- Actor: ${{ github.actor }}"
+          DELIMITER="EOF_$(dd if=/dev/urandom bs=15 count=1 status=none | base64)"
+
+          # Mesaj bloğunu başlatıyoruz.
+          echo "::notice::$DELIMITER"
+
+          # Mesajın içeriğini buraya yazıyoruz. Başlarında ::notice olmadan.
+          echo "✅ **Backup completed successfully!**"
+          echo ""
+          echo "--------------------------------------------------"
+          echo "**Git Metadata**"
+          echo "Repository: ${{ github.repository }}"
+          echo "- Owner: ${{ github.repository_owner }} [${{ github.event.repository.owner.type }}]"
+          echo "- Event: ${{ github.event_name }}"
+          echo "- Ref:   ${{ github.ref }}"
+          echo "- Actor: ${{ github.actor }}"
+
+          # Eğer commit bilgisi varsa, ilgili bölümü mesaja ekliyoruz.
           if [ -n "${{ env.commit }}" ]; then
-            echo "::notice ::"
-            echo "::notice ::--------------------------------------------------"
-            echo "::notice ::**Upload Metadata**"
-            echo "::notice ::- Commit:      ${{ env.commit }}"
-            echo "::notice ::- CommitShort: ${{ env.commitShort }}"
-            echo "::notice ::- Parents:     ${{ env.parents }}"
-            echo "::notice ::- Author:      ${{ env.author }}"
-            echo "::notice ::- Date:        ${{ env.date }}"
-            echo "::notice ::- Committer:   ${{ env.committer }}"
-            echo "::notice ::- Message:     ${{ env.message }}"
+            echo ""
+            echo "--------------------------------------------------"
+            echo "**Upload Metadata**"
+            echo "- Commit:      ${{ env.commit }}"
+            echo "- CommitShort: ${{ env.commitShort }}"
+            echo "- Parents:     ${{ env.parents }}"
+            echo "- Author:      ${{ env.author }}"
+            echo "- Date:        ${{ env.date }}"
+            echo "- Committer:   ${{ env.committer }}"
+            echo "- Message:     ${{ env.message }}"
           fi
-          echo "::notice ::"
-          echo "::notice ::--------------------------------------------------"
-          echo "::notice ::**API Response**"
-          echo "::notice ::- File version id: ${{ env.recordId }}"
-          echo "::notice ::- You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}"
+
+          # Mesajın son bölümünü ekliyoruz.
+          echo ""
+          echo "--------------------------------------------------"
+          echo "**API Response**"
+          echo "- File version id: ${{ env.recordId }}"
+          echo "- You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}"
+          
+          # Mesaj bloğunu daha önce tanımladığımız sınırlayıcı ile bitiriyoruz.
+          echo "$DELIMITER"
 
   # 3. İş: Geçici Önbelleği Temizle
   cleanup:
