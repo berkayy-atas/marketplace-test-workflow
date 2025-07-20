@@ -1,0 +1,116 @@
+#.github/workflows/reusable-backup-workflow.yml
+
+name: Reusable Backup Workflow
+
+# Bu iş akışının başka bir iş akışından çağrılmasına izin ver
+on:
+  workflow_call:
+    # Gerekli girdileri tanımla
+    inputs:
+      backup_path:
+        description: 'Path to the directory or file to be backed up'
+        required: true
+        type: string
+    # Gerekli secret'ları tanımla
+    secrets:
+      activation_code:
+        description: 'Activation code for the backup service'
+        required: true
+      encryption_password:
+        description: 'Password to encrypt the backup archive'
+        required: true
+
+jobs:
+  # 1. İş: Yedeklemeyi Başlat
+  initialize:
+    runs-on: ubuntu-latest
+    outputs:
+      backup_filename: ${{ steps.generate_info.outputs.filename }}
+    steps:
+      - name: Generate Backup Information
+        id: generate_info
+        run: |
+          FILENAME="backup-$(date +%Y%m%d-%H%M%S).zip"
+          echo "Generated filename: $FILENAME"
+          echo "filename=$FILENAME" >> "$GITHUB_OUTPUT"
+
+  # 2. İş: Dosyaları Arşivle
+  archive:
+    runs-on: ubuntu-latest
+    needs: initialize
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create backup archive
+        run: |
+          zip -r ${{ needs.initialize.outputs.backup_filename }} ${{ inputs.backup_path }}
+      
+      - name: Upload archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-archive
+          path: ${{ needs.initialize.outputs.backup_filename }}
+
+  # 3. İş: Arşivi Şifrele
+  encrypt:
+    runs-on: ubuntu-latest
+    needs: [initialize, archive]
+    steps:
+      - name: Download backup archive
+        uses: actions/download-artifact@v4
+        with:
+          name: backup-archive
+
+      - name: Encrypt the archive
+        # Bu adımda, secret'a doğrudan erişim gösterilmektedir.
+        # Gerçek bir uygulamada, şifreleme için 'openssl' veya 'gpg' gibi bir araç kullanılır.
+        run: |
+          echo "Encrypting ${{ needs.initialize.outputs.backup_filename }} with the provided password..."
+          # Örnek şifreleme komutu (gerçek bir araçla değiştirilmelidir)
+          # openssl enc -aes-256-cbc -salt -in ${{ needs.initialize.outputs.backup_filename }} -out ${{ needs.initialize.outputs.backup_filename }}.enc -k "${{ secrets.encryption_password }}"
+          # Bu örnek için sadece dosyayı yeniden adlandırıyoruz
+          mv ${{ needs.initialize.outputs.backup_filename }} ${{ needs.initialize.outputs.backup_filename }}.enc
+          echo "Encryption complete."
+
+      - name: Upload encrypted artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-backup
+          path: ${{ needs.initialize.outputs.backup_filename }}.enc
+
+  # 4. İş: Depolamaya Yükle
+  upload:
+    runs-on: ubuntu-latest
+    needs: [initialize, encrypt]
+    steps:
+      - name: Download encrypted backup
+        uses: actions/download-artifact@v4
+        with:
+          name: encrypted-backup
+      
+      - name: Authenticate with Activation Code
+        # Bu adımda, diğer secret'a doğrudan erişim gösterilmektedir.
+        run: |
+          echo "Authenticating with the provided activation code..."
+          # Gerçek bir uygulamada, bu secret bir API istemcisini veya CLI aracını yapılandırmak için kullanılır.
+          # export MY_SERVICE_TOKEN="${{ secrets.activation_code }}"
+          echo "Authentication successful."
+
+      - name: Upload to final destination
+        run: |
+          echo "Uploading ${{ needs.initialize.outputs.backup_filename }}.enc to the backup storage..."
+          # Gerçek yükleme komutları burada yer alır.
+          echo "Upload complete."
+
+  # 5. İş: Temizlik
+  cleanup:
+    runs-on: ubuntu-latest
+    # Bu iş, önceki işler başarısız olsa bile her zaman çalışır.
+    if: always()
+    needs: [initialize, archive, encrypt, upload]
+    steps:
+      - name: Clean up artifacts
+        # Gerçek bir uygulamada, bu adımda artifact'leri silmek için API çağrıları yapılabilir
+        # veya runner üzerindeki geçici dosyalar temizlenebilir.
+        run: echo "Cleanup job is running."
