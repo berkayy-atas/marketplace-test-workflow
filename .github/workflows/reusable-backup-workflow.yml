@@ -93,11 +93,35 @@ jobs:
           echo "compressed=$(stat --printf='%s' "$ENC_FILE_NAME")" >> $GITHUB_OUTPUT
       
       # Artifact yerine, şifrelenmiş dosyayı önbelleğe kaydediyoruz.
-      - name: Save encrypted backup to cache
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.ENC_FILE_NAME }}
-          key: ${{ env.BACKUP_CACHE_KEY }}
+      - name: Save encrypted backup to cache with retry
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Bu döngü, komutun en fazla 2 kez çalışmasını sağlar.
+          for i in 1 2; do
+            echo "Attempting to save cache (Attempt $i)..."
+            
+            # gh cache upload komutu ile dosyayı önbelleğe yüklemeyi deniyoruz.
+            # Başarılı olursa, komut 0 exit kodu döndürür ve 'if' bloğu çalışır.
+            if gh cache upload "${{ env.ENC_FILE_NAME }}" --key "${{ env.BACKUP_CACHE_KEY }}"; then
+              echo "✅ Cache saved successfully on attempt $i."
+              # Başarılı olduğu için script'i 0 (başarı) koduyla sonlandırıyoruz.
+              exit 0
+            fi
+
+            # Eğer buraya ulaştıysak, komut başarısız olmuştur.
+            # Eğer bu son deneme ise (i=2), hata ile çık.
+            if [ $i -eq 2 ]; then
+              echo "::error::Cache save failed after 2 attempts. Aborting workflow."
+              # Script'i 1 (hata) koduyla sonlandırarak tüm iş akışını durduruyoruz.
+              exit 1
+            fi
+            
+            # Son deneme değilse, bir uyarı ver ve tekrar denemeden önce 5 saniye bekle.
+            echo "::warning::Cache save failed on attempt $i. Retrying in 5 seconds..."
+            sleep 5
+          done
 
   # 2. İş: Önbellekten Geri Yükle ve Depolamaya Yükle
   auth_and_Upload:
@@ -240,45 +264,46 @@ jobs:
           message: ${{ steps.shieldRequest.outputs.message }}
           endpointId: ${{ steps.activation.outputs.endpointId }}
         run: |
-          DELIMITER="EOF_$(dd if=/dev/urandom bs=15 count=1 status=none | base64)"
-
-          # Mesaj bloğunu başlatıyoruz.
-          echo "::notice::$DELIMITER"
-
-          # Mesajın içeriğini buraya yazıyoruz. Başlarında ::notice olmadan.
-          echo "✅ **Backup completed successfully!**"
-          echo ""
-          echo "--------------------------------------------------"
-          echo "**Git Metadata**"
-          echo "Repository: ${{ github.repository }}"
-          echo "- Owner: ${{ github.repository_owner }} [${{ github.event.repository.owner.type }}]"
-          echo "- Event: ${{ github.event_name }}"
-          echo "- Ref:   ${{ github.ref }}"
-          echo "- Actor: ${{ github.actor }}"
+          # Tüm mesajı, yeni satır karakterleri ($'\n') kullanarak tek bir değişkende biriktiriyoruz.
+          MESSAGE="✅ **Backup completed successfully!**"
+          MESSAGE+=$'\n\n'
+          MESSAGE+="--------------------------------------------------\n"
+          MESSAGE+="**Git Metadata**\n"
+          MESSAGE+="Repository: ${{ github.repository }}\n"
+          MESSAGE+="- Owner: ${{ github.repository_owner }} [${{ github.event.repository.owner.type }}]\n"
+          MESSAGE+="- Event: ${{ github.event_name }}\n"
+          MESSAGE+="- Ref:   ${{ github.ref }}\n"
+          MESSAGE+="- Actor: ${{ github.actor }}\n"
 
           # Eğer commit bilgisi varsa, ilgili bölümü mesaja ekliyoruz.
           if [ -n "${{ env.commit }}" ]; then
-            echo ""
-            echo "--------------------------------------------------"
-            echo "**Upload Metadata**"
-            echo "- Commit:      ${{ env.commit }}"
-            echo "- CommitShort: ${{ env.commitShort }}"
-            echo "- Parents:     ${{ env.parents }}"
-            echo "- Author:      ${{ env.author }}"
-            echo "- Date:        ${{ env.date }}"
-            echo "- Committer:   ${{ env.committer }}"
-            echo "- Message:     ${{ env.message }}"
+            MESSAGE+=$'\n'
+            MESSAGE+="--------------------------------------------------\n"
+            MESSAGE+="**Upload Metadata**\n"
+            MESSAGE+="- Commit:      ${{ env.commit }}\n"
+            MESSAGE+="- CommitShort: ${{ env.commitShort }}\n"
+            MESSAGE+="- Parents:     ${{ env.parents }}\n"
+            MESSAGE+="- Author:      ${{ env.author }}\n"
+            MESSAGE+="- Date:        ${{ env.date }}\n"
+            MESSAGE+="- Committer:   ${{ env.committer }}\n"
+            MESSAGE+="- Message:     ${{ env.message }}\n"
           fi
 
           # Mesajın son bölümünü ekliyoruz.
-          echo ""
-          echo "--------------------------------------------------"
-          echo "**API Response**"
-          echo "- File version id: ${{ env.recordId }}"
-          echo "- You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}"
+          MESSAGE+=$'\n'
+          MESSAGE+="--------------------------------------------------\n"
+          MESSAGE+="**API Response**\n"
+          MESSAGE+="- File version id: ${{ env.recordId }}\n"
+          MESSAGE+="- You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}"
+
+          # GitHub Actions'ın çok satırlı komutları doğru işlemesi için
+          # özel karakterleri (% -> %25, \n -> %0A) URL-encode formatına çeviriyoruz.
+          MESSAGE="${MESSAGE//'%'/'%25'}"
+          MESSAGE="${MESSAGE//$'\n'/'%0A'}"
+          MESSAGE="${MESSAGE//$'\r'/'%0D'}"
           
-          # Mesaj bloğunu daha önce tanımladığımız sınırlayıcı ile bitiriyoruz.
-          echo "$DELIMITER"
+          # Son olarak, formatlanmış mesajı tek bir ::notice komutuyla yazdırıyoruz.
+          echo "::notice::$MESSAGE"
 
   # 3. İş: Geçici Önbelleği Temizle
   cleanup:
