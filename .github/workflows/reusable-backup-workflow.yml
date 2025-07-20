@@ -1,116 +1,124 @@
 #.github/workflows/reusable-backup-workflow.yml
+name: Reusable Backup Workflow with Cache
 
-name: Reusable Backup Workflow
-
-# Bu iş akışının başka bir iş akışından çağrılmasına izin ver
+# Bu iş akışının başka iş akışları tarafından çağrılabilmesini sağlar.
 on:
   workflow_call:
-    # Gerekli girdileri tanımla
     inputs:
-      backup_path:
-        description: 'Path to the directory or file to be backed up'
+      backup-file-name:
+        description: 'Name for the backup archive file.'
         required: true
         type: string
-    # Gerekli secret'ları tanımla
+      source-path:
+        description: 'Path to the directory or file to back up.'
+        required: true
+        type: string
+        default: '.'
+      upload-target-url:
+        description: 'Optional URL for uploading the backup to an off-site location.'
+        required: false
+        type: string
     secrets:
-      activation_code:
-        description: 'Activation code for the backup service'
+      OFFSITE_UPLOAD_TOKEN:
+        description: 'Token for uploading the backup to an off-site location.'
         required: true
-      encryption_password:
-        description: 'Password to encrypt the backup archive'
-        required: true
+
+# İş akışı düzeyinde bir ortam değişkeni olarak benzersiz önbellek anahtarını tanımlar.
+# Bu, tüm işlerde tutarlı bir anahtar kullanılmasını sağlar.
+env:
+  BACKUP_CACHE_KEY: backup-cache-${{ github.run_id }}
 
 jobs:
-  # 1. İş: Yedeklemeyi Başlat
-  initialize:
+  # İŞ 1: Yedek dosyasını oluşturur ve doğrudan önbelleğe kaydeder.
+  create_and_cache_backup:
     runs-on: ubuntu-latest
-    outputs:
-      backup_filename: ${{ steps.generate_info.outputs.filename }}
+    permissions:
+      contents: read # Depo içeriğini okumak için gereklidir.
     steps:
-      - name: Generate Backup Information
-        id: generate_info
-        run: |
-          FILENAME="backup-$(date +%Y%m%d-%H%M%S).zip"
-          echo "Generated filename: $FILENAME"
-          echo "filename=$FILENAME" >> "$GITHUB_OUTPUT"
-
-  # 2. İş: Dosyaları Arşivle
-  archive:
-    runs-on: ubuntu-latest
-    needs: initialize
-    steps:
+      # Adım 1.1: Depoyu klonla. fetch-depth: 0, tam bir yedekleme için tüm geçmişi alır.
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      # Adım 1.2: Hızlı sıkıştırma için zstd aracını yükle.
+      - name: Install zstd for high-speed compression
+        run: sudo apt-get update && sudo apt-get install -y zstd
+
+      # Adım 1.3: Yedek arşivini oluştur.
+      # tar, en iyi hız ve sıkıştırma oranı için zstd ile kullanılır.
+      # -T0 parametresi, mevcut tüm işlemci çekirdeklerini kullanmasını sağlar.
       - name: Create backup archive
         run: |
-          zip -r ${{ needs.initialize.outputs.backup_filename }} ${{ inputs.backup_path }}
-      
-      - name: Upload archive artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: backup-archive
-          path: ${{ needs.initialize.outputs.backup_filename }}
+          tar --use-compress-program="zstd -T0" -cf ${{ inputs.backup-file-name }} ${{ inputs.source-path }}
+          echo "Backup file created: ${{ inputs.backup-file-name }}"
+          ls -lh ${{ inputs.backup-file-name }}
 
-  # 3. İş: Arşivi Şifrele
-  encrypt:
+      # Adım 1.4: Yedeklemeyi önbelleğe kaydet.
+      # actions/cache eylemi, işin sonunda (post-job) belirtilen yolu otomatik olarak kaydeder.
+      # restore-keys KULLANILMAZ, çünkü eski bir yedeği geri yüklemek istemiyoruz.
+      - name: Save backup to cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ inputs.backup-file-name }}
+          key: ${{ env.BACKUP_CACHE_KEY }}
+
+  # İŞ 2: Yedeklemeyi önbellekten geri yükler ve işler (doğrulama, yükleme vb.).
+  restore_and_process_backup:
     runs-on: ubuntu-latest
-    needs: [initialize, archive]
+    # Bu işin başlaması için create_and_cache_backup işinin tamamlanması gerekir.
+    needs: create_and_cache_backup
+    permissions:
+      contents: read # Harici yükleme betiklerinin çalışması için gerekebilir.
     steps:
-      - name: Download backup archive
-        uses: actions/download-artifact@v4
+      # Adım 2.1: Yedeklemeyi önbellekten geri yükle.
+      # actions/cache/restore@v4, yalnızca geri yükleme yapmak için daha açık bir eylemdir.
+      - name: Restore backup from cache
+        id: cache_restore
+        uses: actions/cache/restore@v4
         with:
-          name: backup-archive
+          path: ${{ inputs.backup-file-name }}
+          key: ${{ env.BACKUP_CACHE_KEY }}
+          # fail-on-cache-miss: true, bu mimarinin güvenilirliği için kritiktir.
+          # Önbellek bulunamazsa (yani, önceki iş başarısız olduysa), bu iş de başarısız olur.
+          # Bu, sessiz hataları önler.[24, 25]
+          fail-on-cache-miss: true
 
-      - name: Encrypt the archive
-        # Bu adımda, secret'a doğrudan erişim gösterilmektedir.
-        # Gerçek bir uygulamada, şifreleme için 'openssl' veya 'gpg' gibi bir araç kullanılır.
+      # Adım 2.2: Yedekleme bütünlüğünü doğrula (örnek adım).
+      - name: Verify backup integrity
         run: |
-          echo "Encrypting ${{ needs.initialize.outputs.backup_filename }} with the provided password..."
-          # Örnek şifreleme komutu (gerçek bir araçla değiştirilmelidir)
-          # openssl enc -aes-256-cbc -salt -in ${{ needs.initialize.outputs.backup_filename }} -out ${{ needs.initialize.outputs.backup_filename }}.enc -k "${{ secrets.encryption_password }}"
-          # Bu örnek için sadece dosyayı yeniden adlandırıyoruz
-          mv ${{ needs.initialize.outputs.backup_filename }} ${{ needs.initialize.outputs.backup_filename }}.enc
-          echo "Encryption complete."
+          echo "Verifying backup file..."
+          file ${{ inputs.backup-file-name }}
+          ls -lh ${{ inputs.backup-file-name }}
+          # Gerçek bir senaryoda burada md5/sha256 kontrolü yapılabilir.
 
-      - name: Upload encrypted artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: encrypted-backup
-          path: ${{ needs.initialize.outputs.backup_filename }}.enc
-
-  # 4. İş: Depolamaya Yükle
-  upload:
-    runs-on: ubuntu-latest
-    needs: [initialize, encrypt]
-    steps:
-      - name: Download encrypted backup
-        uses: actions/download-artifact@v4
-        with:
-          name: encrypted-backup
-      
-      - name: Authenticate with Activation Code
-        # Bu adımda, diğer secret'a doğrudan erişim gösterilmektedir.
+      # Adım 2.3: Harici Depolama Alanına Yükle (örnek adım).
+      # Bu adım yalnızca upload-target-url girdisi sağlandıysa çalışır.
+      - name: Upload to Off-site Storage
+        if: ${{ inputs.upload-target-url!= '' }}
+        env:
+          UPLOAD_TOKEN: ${{ secrets.OFFSITE_UPLOAD_TOKEN }}
         run: |
-          echo "Authenticating with the provided activation code..."
-          # Gerçek bir uygulamada, bu secret bir API istemcisini veya CLI aracını yapılandırmak için kullanılır.
-          # export MY_SERVICE_TOKEN="${{ secrets.activation_code }}"
-          echo "Authentication successful."
-
-      - name: Upload to final destination
-        run: |
-          echo "Uploading ${{ needs.initialize.outputs.backup_filename }}.enc to the backup storage..."
-          # Gerçek yükleme komutları burada yer alır.
+          echo "Uploading ${{ inputs.backup-file-name }} to ${{ inputs.upload-target-url }}..."
+          # Gerçek yükleme komut dosyası buraya eklenir (örn. curl, aws s3 cp, vs.).
           echo "Upload complete."
 
-  # 5. İş: Temizlik
-  cleanup:
+  # İŞ 3: Başarılı bir çalıştırmanın ardından önbellek girişini temizler.
+  cleanup_backup_cache:
     runs-on: ubuntu-latest
-    # Bu iş, önceki işler başarısız olsa bile her zaman çalışır.
-    if: always()
-    needs: [initialize, archive, encrypt, upload]
+    # Bu iş, yalnızca restore_and_process_backup işi başarılı olursa çalışır.
+    needs: restore_and_process_backup
+    # if: success() koşulu, önceki işin sonucunun 'success' olmasını gerektirir.
+    if: success()
+    permissions:
+      # gh cache delete komutunun çalışması için 'actions: write' izni gereklidir.
+      actions: write
+      contents: read
     steps:
-      - name: Clean up artifacts
-        # Gerçek bir uygulamada, bu adımda artifact'leri silmek için API çağrıları yapılabilir
-        # veya runner üzerindeki geçici dosyalar temizlenebilir.
-        run: echo "Cleanup job is running."
+      - name: Delete backup cache entry
+        env:
+          # GitHub CLI'nin kimlik doğrulaması için GITHUB_TOKEN gereklidir.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Cleaning up cache with key: ${{ env.BACKUP_CACHE_KEY }}"
+          gh cache delete "${{ env.BACKUP_CACHE_KEY }}" --confirm
