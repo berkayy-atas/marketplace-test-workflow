@@ -93,6 +93,21 @@ jobs:
           echo "compressed=$(stat --printf='%s' "$ENC_FILE_NAME")" >> $GITHUB_OUTPUT
       
       # Artifact yerine, şifrelenmiş dosyayı önbelleğe kaydediyoruz.
+
+      - name: Install/Update GitHub CLI to the latest version
+        shell: bash
+        run: |
+          # Bu adım, runner'daki gh versiyonunun en güncel olmasını sağlar.
+          # Bu, 'gh cache upload' gibi yeni komutların çalışması için gereklidir.
+          type -p curl >/dev/null || (sudo apt-get update && sudo apt-get install curl -y)
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+          && sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+          && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+          && sudo apt-get update \
+          && sudo apt-get install gh -y
+          echo "Installed gh version:"
+          gh --version
+
       - name: Save encrypted backup to cache with retry
         shell: bash
         env:
