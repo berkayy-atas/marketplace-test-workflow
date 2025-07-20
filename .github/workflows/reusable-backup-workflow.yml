@@ -57,6 +57,16 @@ jobs:
                   git branch "$b" "$branch"
               fi
           done
+
+      - name: Clone Repository in Mirror Mode
+        shell: bash
+        run: |
+          git clone --mirror . repo-mirror
+          cd repo-mirror
+          echo "--- Mirror Branches ---"
+          git branch -a
+          echo "--- Mirror Tags ---"
+          git tag -l
   
       - name: Install Dependencies
         shell: bash
