@@ -13,17 +13,6 @@ on:
         description: 'Password to encrypt the backup archive'
         required: true
         type: string
-    outputs:
-      recordId:
-        description: "The record ID from the backup service"
-        value: ${{ jobs.auth_and_Upload.outputs.recordId }}
-      directoryRecordId:
-        description: "The directory record ID from the backup service"
-        value: ${{ jobs.auth_and_Upload.outputs.directoryRecordId }}
-      commit:
-        description: "The full commit hash of the backup"
-        value: ${{ jobs.auth_and_Upload.outputs.commit }}
-
 
 # Her iş akışı çalıştırması için benzersiz bir önbellek anahtarı tanımlıyoruz.
 env:
@@ -106,10 +95,6 @@ jobs:
   auth_and_Upload:
     runs-on: ubuntu-latest
     needs: uploading_and_encryption
-    outputs:
-      recordId: ${{ steps.shieldRequest.outputs.recordId }}
-      directoryRecordId: ${{ steps.shieldRequest.outputs.directoryRecordId }}
-      commit: ${{ steps.shieldRequest.outputs.commit }}
     steps:
       # Artifact yerine, şifrelenmiş dosyayı önbellekten geri yüklüyoruz.
       - name: Restore encrypted backup from cache
@@ -219,15 +204,60 @@ jobs:
           echo "recordId=$(echo "$JSON_BODY" | jq -r '.data.recordId')" >> $GITHUB_ENV
           echo "directoryRecordId=$(echo "$JSON_BODY" | jq -r '.data.directoryRecordId')" >> $GITHUB_ENV
           
-          echo "commit=$COMMIT" >> $GITHUB_ENV
-          echo "commitShort=$SHORT" >> $GITHUB_ENV
-          echo "parents=$PARENTS" >> $GITHUB_ENV
-          echo "author=$AUTHOR" >> $GITHUB_ENV
-          echo "date=$DATE" >> $GITHUB_ENV
-          echo "committer=$COMMITTER" >> $GITHUB_ENV
-          echo "message=$(git log -1 --pretty=format:"%s%n%b" | tr '\n' ' ')" >> $GITHUB_ENV
+          # Özet adımı için tüm git verilerini çıktı olarak ayarlıyoruz.
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          echo "commitShort=$SHORT" >> $GITHUB_OUTPUT
+          echo "parents=$PARENTS" >> $GITHUB_OUTPUT
+          echo "author=$AUTHOR" >> $GITHUB_OUTPUT
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+          echo "committer=$COMMITTER" >> $GITHUB_OUTPUT
+          echo "message=$(echo "$MESSAGE" | tr '\n' ' ')" >> $GITHUB_OUTPUT
 
           echo "Backup uploaded successfully."
+
+      # YENİ ADIM: Yedekleme özetini loglara yazdırır.
+      - name: Print Backup Summary
+        if: success()
+        shell: bash
+        env:
+          # Önceki adımlardan gelen çıktıları bu adımın ortam değişkenlerine atıyoruz.
+          recordId: ${{ steps.shieldRequest.outputs.recordId }}
+          directoryRecordId: ${{ steps.shieldRequest.outputs.directoryRecordId }}
+          commit: ${{ steps.shieldRequest.outputs.commit }}
+          commitShort: ${{ steps.shieldRequest.outputs.commitShort }}
+          parents: ${{ steps.shieldRequest.outputs.parents }}
+          author: ${{ steps.shieldRequest.outputs.author }}
+          date: ${{ steps.shieldRequest.outputs.date }}
+          committer: ${{ steps.shieldRequest.outputs.committer }}
+          message: ${{ steps.shieldRequest.outputs.message }}
+          endpointId: ${{ steps.activation.outputs.endpointId }}
+        run: |
+          echo "::info::✅ **Backup completed successfully!**"
+          echo "::info::"
+          echo "::info::--------------------------------------------------"
+          echo "::info::**Git Metadata**"
+          echo "::info::Repository: ${{ github.repository }}"
+          echo "::info::- Owner: ${{ github.repository_owner }} [${{ github.event.repository.owner.type }}]"
+          echo "::info::- Event: ${{ github.event_name }}"
+          echo "::info::- Ref:   ${{ github.ref }}"
+          echo "::info::- Actor: ${{ github.actor }}"
+          if [ -n "${{ env.commit }}" ]; then
+            echo "::info::"
+            echo "::info::--------------------------------------------------"
+            echo "::info::**Upload Metadata**"
+            echo "::info::- Commit:      ${{ env.commit }}"
+            echo "::info::- CommitShort: ${{ env.commitShort }}"
+            echo "::info::- Parents:     ${{ env.parents }}"
+            echo "::info::- Author:      ${{ env.author }}"
+            echo "::info::- Date:        ${{ env.date }}"
+            echo "::info::- Committer:   ${{ env.committer }}"
+            echo "::info::- Message:     ${{ env.message }}"
+          fi
+          echo "::info::"
+          echo "::info::--------------------------------------------------"
+          echo "::info::**API Response**"
+          echo "::info::- File version id: ${{ env.recordId }}"
+          echo "::info::- You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}"
 
   # 3. İş: Geçici Önbelleği Temizle
   cleanup:
