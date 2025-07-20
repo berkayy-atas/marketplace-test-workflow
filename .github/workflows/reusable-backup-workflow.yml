@@ -5,85 +5,236 @@ name: Reusable Backup Workflow with Cache
 on:
   workflow_call:
     inputs:
-      backup-file-name:
-        description: 'Name for the backup archive file.'
-        required: true
-        type: string
-      source-path:
-        description: 'Path to the directory or file to back up.'
-        required: true
-        type: string
-    secrets:
       activation_code:
         description: 'Activation code for the backup service'
         required: true
+        type: string
       encryption_password:
         description: 'Password to encrypt the backup archive'
         required: true
+        type: string
+    outputs:
+      recordId:
+        description: "The record ID from the backup service"
+        value: ${{ jobs.auth_and_Upload.outputs.recordId }}
+      directoryRecordId:
+        description: "The directory record ID from the backup service"
+        value: ${{ jobs.auth_and_Upload.outputs.directoryRecordId }}
+      commit:
+        description: "The full commit hash of the backup"
+        value: ${{ jobs.auth_and_Upload.outputs.commit }}
+
 
 # Her iş akışı çalıştırması için benzersiz bir önbellek anahtarı tanımlıyoruz.
 env:
   BACKUP_CACHE_KEY: backup-cache-${{ github.run_id }}-${{ inputs.backup-file-name }}
 
 jobs:
-  # 1. İş: Arşivle, Şifrele ve Önbelleğe Kaydet
-  create_encrypt_and_cache:
+
+  inputs_check:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Validate encryption password length
+        shell: bash
+        run: |
+          ENC_KEY="${{ inputs.encryption_password }}"
+          if [ "${#ENC_KEY}" -lt 32 ]; then
+            echo "::error ::The encryption_password must be at least 32 characters long (got ${#ENC_KEY})."
+            exit 1
+          fi
+          
+  uploading_and_encryption:
+    runs-on: ubuntu-latest
+    needs: inputs_check
+    outputs:
+      encrypted_file_name: ${{ steps.encrypt_step.outputs.encrypted_file_name }}
+      uncompressed_size: ${{ steps.encrypt_step.outputs.uncompressed }}
+      compressed_size: ${{ steps.encrypt_step.outputs.compressed }}
+    steps:
+      - name: Checkout Repository
         uses: actions/checkout@v4
-
-      - name: Create backup archive
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+  
+      - name: Configure Repository for Full Mirror
+        shell: bash
         run: |
-          zip -r ${{ inputs.backup-file-name }} ${{ inputs.source-path }}
+          git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+          git config remote.origin.tagopt --tags
+          git fetch origin --prune --tags --force
+          
+          git for-each-ref --format='%(refname:short)' refs/remotes/origin | grep -v HEAD | while read branch; do
+              b=${branch#origin/}
+              if ! git show-ref --quiet refs/heads/"$b"; then
+                  git branch "$b" "$branch"
+              fi
+          done
+  
+      - name: Install Dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd jq
+  
+          
+      - name: Encrypt Compressed Repository
+        id: encrypt_step
+        shell: bash
+        run: |
+          REPO_NAME=$(basename "${{ github.repository }}")
+          ENC_FILE_NAME="$REPO_NAME.tar.zst.enc"
+
+          tar -cf repo.tar repo-mirror
+          zstd -9 repo.tar -o repo.tar.zst
+          openssl enc -aes-256-cbc -salt -pbkdf2 -in repo.tar.zst -out "$ENC_FILE_NAME" -pass pass:${{ inputs.encryption_password }}
+
+          echo "ENC_FILE_NAME=$ENC_FILE_NAME" >> $GITHUB_ENV
+
+          echo "encrypted_file_name=$ENC_FILE_NAME" >> $GITHUB_OUTPUT
+          echo "uncompressed=$(stat --printf='%s' repo.tar)" >> $GITHUB_OUTPUT
+          echo "compressed=$(stat --printf='%s' "$ENC_FILE_NAME")" >> $GITHUB_OUTPUT
       
-      - name: Encrypt the archive
-        run: |
-          echo "Encrypting ${{ inputs.backup-file-name }}..."
-          # Gerçek şifreleme komutu (örneğin openssl) burada kullanılmalıdır.
-          # openssl enc -aes-256-cbc -salt -in ${{ inputs.backup-file-name }} -out ${{ inputs.backup-file-name }}.enc -k "${{ secrets.encryption_password }}"
-          mv ${{ inputs.backup-file-name }} ${{ inputs.backup-file-name }}.enc
-          echo "Encryption complete."
-
       # Artifact yerine, şifrelenmiş dosyayı önbelleğe kaydediyoruz.
       - name: Save encrypted backup to cache
         uses: actions/cache/save@v4
         with:
-          path: ${{ inputs.backup-file-name }}.enc
+          path: ${{ env.ENC_FILE_NAME }}
           key: ${{ env.BACKUP_CACHE_KEY }}
 
   # 2. İş: Önbellekten Geri Yükle ve Depolamaya Yükle
-  upload:
+  auth_and_Upload:
     runs-on: ubuntu-latest
-    needs: create_encrypt_and_cache
+    needs: uploading_and_encryption
+    outputs:
+      recordId: ${{ steps.shieldRequest.outputs.recordId }}
+      directoryRecordId: ${{ steps.shieldRequest.outputs.directoryRecordId }}
+      commit: ${{ steps.shieldRequest.outputs.commit }}
     steps:
       # Artifact yerine, şifrelenmiş dosyayı önbellekten geri yüklüyoruz.
       - name: Restore encrypted backup from cache
         uses: actions/cache/restore@v4
         with:
-          path: ${{ inputs.backup-file-name }}.enc
+          path: ${{ needs.uploading_and_encryption.outputs.encrypted_file_name }}
           key: ${{ env.BACKUP_CACHE_KEY }}
           # Bu parametre kritik öneme sahiptir: Önbellek bulunamazsa, iş başarısız olur.
           fail-on-cache-miss: true
       
-      - name: Authenticate with Activation Code
+      - name: Get Activation Token
+        id: activation
+        shell: bash
         run: |
-          echo "Authenticating with the provided activation code..."
-          # export MY_SERVICE_TOKEN="${{ secrets.activation_code }}"
-          echo "Authentication successful."
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/endpoint/activation" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "activationCode": "${{ inputs.activation_code }}",
+            "uniqueId": "${{ github.repository_id }}",
+            "ip": "${{ runner.ip }}",
+            "operatingSystem": "Linux",
+            "endpointType": "Workstation",
+            "endpointName": "Github Endpoint (${{ github.repository }})"
+          }')
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+          JSON_BODY=$(echo "$RESPONSE" | head -n -1)
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Activation failed: $JSON_BODY"
+            exit 1
+          fi
 
-      - name: Upload to final destination
+          echo "token=$(echo "$JSON_BODY" | jq -r '.data.token')" >> $GITHUB_OUTPUT
+          echo "endpointId=$(echo "$JSON_BODY" | jq -r '.data.endpointId')" >> $GITHUB_OUTPUT
+  
+      - name: Upload Backup to Shield API (with dynamic commit meta)
+        id: shieldRequest
+        shell: bash
+        env:
+          TOKEN: ${{ steps.activation.outputs.token }}
         run: |
-          echo "Uploading ${{ inputs.backup-file-name }}.enc to the backup storage..."
-          ls -lh ${{ inputs.backup-file-name }}.enc
-          echo "Upload complete."
+          ENC_FILE_NAME="${{ needs.uploading_and_encryption.outputs.encrypted_file_name }}"
+          UNCOMPRESSED_SIZE="${{ needs.uploading_and_encryption.outputs.uncompressed_size }}"
+          COMPRESSED_SIZE="${{ needs.uploading_and_encryption.outputs.compressed_size }}"
+
+          EVENT="${{ github.event_name }}"
+          REF="${{ github.ref }}"
+          ACTOR="${{ github.actor }}"
+          OWNER="${{ github.repository_owner }}"
+          OWNER_TYPE="${{ github.event.repository.owner.type }}"
+          
+          if git rev-parse --verify HEAD >/dev/null 2>&1; then
+            COMMIT=$(git log -1 --pretty=format:"%H")
+            SHORT=$(git log -1 --pretty=format:"%h")
+            PARENTS=$(git log -1 --pretty=format:"%P")
+            AUTHOR=$(git log -1 --pretty=format:"%an <%ae>")
+            DATE=$(git log -1 --pretty=format:"%ad")
+            COMMITTER=$(git log -1 --pretty=format:"%cn")
+            MESSAGE=$(git log -1 --pretty=format:"%s%n%b")
+          else
+            COMMIT=""
+            SHORT=""
+            PARENTS=""
+            AUTHOR=""
+            DATE=""
+            COMMITTER=""
+            MESSAGE=""
+          fi
+          
+          CURL_ARGS=(
+            -F "MetaData[Event]=$EVENT"
+            -F "MetaData[Ref]=$REF"
+            -F "MetaData[Actor]=$ACTOR"
+            -F "MetaData[Owner]=$OWNER"
+            -F "MetaData[OwnerType]=$OWNER_TYPE"
+          )
+          [ -n "$COMMIT" ] && CURL_ARGS+=(-F "MetaData[Commit]=$COMMIT")
+          [ -n "$SHORT" ] && CURL_ARGS+=(-F "MetaData[CommitShort]=$SHORT")
+          [ -n "$PARENTS" ] && CURL_ARGS+=(-F "MetaData[Parents]=$PARENTS")
+          [ -n "$AUTHOR" ] && CURL_ARGS+=(-F "MetaData[Author]=$AUTHOR")
+          [ -n "$DATE" ] && CURL_ARGS+=(-F "MetaData[Date]=$DATE")
+          [ -n "$COMMITTER" ] && CURL_ARGS+=(-F "MetaData[Committer]=$COMMITTER")
+          [ -n "$MESSAGE" ] && CURL_ARGS+=(-F "MetaData[Message]=$MESSAGE")
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://dev.api.file-security.icredible.com/backup/shield" \
+            -H "Authorization: Bearer $TOKEN" \
+            -F "file=@$ENC_FILE_NAME" \
+            -F "Size=$UNCOMPRESSED_SIZE" \
+            -F "CompressedFileSize=$COMPRESSED_SIZE" \
+            -F "Attributes=32" \
+            -F "FileName=${{ github.repository }}" \
+            -F "CompressionEngine=None" \
+            -F "CompressionLevel=NoCompression" \
+            -F "FullPath=/${{ github.repository }}/repo.tar.zst" \
+            -F "encryptionType=None" \
+            -F "RevisionType=1" \
+            "${CURL_ARGS[@]}"
+          )
+
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+          JSON_BODY=$(echo "$RESPONSE" | head -n -1)
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Upload failed: $JSON_BODY"
+            exit 1
+          fi
+
+          echo "recordId=$(echo "$JSON_BODY" | jq -r '.data.recordId')" >> $GITHUB_ENV
+          echo "directoryRecordId=$(echo "$JSON_BODY" | jq -r '.data.directoryRecordId')" >> $GITHUB_ENV
+          
+          echo "commit=$COMMIT" >> $GITHUB_ENV
+          echo "commitShort=$SHORT" >> $GITHUB_ENV
+          echo "parents=$PARENTS" >> $GITHUB_ENV
+          echo "author=$AUTHOR" >> $GITHUB_ENV
+          echo "date=$DATE" >> $GITHUB_ENV
+          echo "committer=$COMMITTER" >> $GITHUB_ENV
+          echo "message=$(git log -1 --pretty=format:"%s%n%b" | tr '\n' ' ')" >> $GITHUB_ENV
+
+          echo "Backup uploaded successfully."
 
   # 3. İş: Geçici Önbelleği Temizle
   cleanup:
     runs-on: ubuntu-latest
     # Bu iş, önceki işlerin sonucuna bakılmaksızın her zaman çalışır.
     if: always()
-    needs: [upload]
+    needs: [auth_and_Upload]
     # Önbelleği silebilmek için 'actions: write' izni gereklidir.
     permissions:
       actions: write
@@ -93,5 +244,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Cleaning up cache with key: ${{ env.BACKUP_CACHE_KEY }}"
-          gh cache delete "${{ env.BACKUP_CACHE_KEY }}" --confirm |
-          | echo "Cache entry not found or already deleted."
+          gh cache delete "${{ env.BACKUP_CACHE_KEY }}" --confirm || echo "Cache entry not found or already deleted."
