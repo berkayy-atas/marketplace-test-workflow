@@ -287,7 +287,7 @@ jobs:
           MESSAGE="${MESSAGE//$'\r'/'%0D'}"
           
           # Son olarak, formatlanmış mesajı tek bir ::notice komutuyla yazdırıyoruz.
-          echo "::notice::$MESSAGE"
+          echo -e "::notice::$MESSAGE"
 
   # 3. İş: Geçici Önbelleği Temizle
   cleanup:
