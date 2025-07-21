@@ -185,7 +185,7 @@ runs:
       shell: bash
       run: |
         UPLOAD_METADATA=""
-        if [ -n "${{ env.commit }}" ]; then
+       if [ -n "${{ env.commit }}" ]; then
           UPLOAD_METADATA=$(cat <<EOF
           --------------------------------------------------
           **Upload Metadata**
@@ -197,7 +197,7 @@ runs:
           - Committer:   ${{ env.committer }}
           - Message:     ${{ env.message }}
           EOF
-            )
+          )
         fi
 
         SUMMARY=$(cat <<EOF
