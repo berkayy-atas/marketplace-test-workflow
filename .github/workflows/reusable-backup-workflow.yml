@@ -1,5 +1,3 @@
-#.github/workflows/reusable-backup-workflow.yml
-
 name: Reusable Backup Workflow with Cache
 
 on:
@@ -243,8 +241,7 @@ jobs:
           message: ${{ steps.shieldRequest.outputs.message }}
           endpointId: ${{ steps.activation.outputs.endpointId }}
         run: |
-          # 1. Adım: Koşullu "Upload Metadata" bloğunu hazırla.
-          # Eğer commit bilgisi yoksa bu değişken boş kalacak.
+          
           UPLOAD_METADATA=""
           if [ -n "${{ env.commit }}" ]; then
             UPLOAD_METADATA=$(cat <<EOF
@@ -261,11 +258,8 @@ jobs:
             )
           fi
 
-          # 2. Adım: Ana metin şablonunu oluştur ve koşullu bloğu araya ekle.
-          # Eğer UPLOAD_METADATA boş ise, bu satır hiçbir şey yazdırmaz.
           SUMMARY=$(cat <<EOF
           ✅ **Backup completed successfully!**
-
           --------------------------------------------------
           **Git Metadata**
           Repository: ${{ github.repository }}
@@ -282,7 +276,6 @@ jobs:
           EOF
           )
 
-          # 3. Adım: GitHub'ın anlayacağı formata çevir ve yazdır.
           MESSAGE="${SUMMARY//'%'/'%25'}"
           MESSAGE="${MESSAGE//$'\n'/'%0A'}"
           MESSAGE="${MESSAGE//$'\r'/'%0D'}"
