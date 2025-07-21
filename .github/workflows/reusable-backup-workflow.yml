@@ -212,8 +212,8 @@ jobs:
             exit 1
           fi
 
-          echo "recordId=$(echo "$JSON_BODY" | jq -r '.data.recordId')" >> $GITHUB_ENV
-          echo "directoryRecordId=$(echo "$JSON_BODY" | jq -r '.data.directoryRecordId')" >> $GITHUB_ENV
+          echo "recordId=$(echo "$JSON_BODY" | jq -r '.data.recordId')" >> $GITHUB_OUTPUT
+          echo "directoryRecordId=$(echo "$JSON_BODY" | jq -r '.data.directoryRecordId')" >> $GITHUB_OUTPUT
           
           # Özet adımı için tüm git verilerini çıktı olarak ayarlıyoruz.
           echo "commit=$COMMIT" >> $GITHUB_OUTPUT
