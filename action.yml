@@ -186,18 +186,19 @@ runs:
       run: |
         UPLOAD_METADATA=""
         if [ -n "${{ env.commit }}" ]; then
+          # HEREDOC'un kapanış 'EOF' ve ')' karakterleri satır başında olmalıdır.
           UPLOAD_METADATA=$(cat <<EOF
-          --------------------------------------------------
-          **Upload Metadata**
-          - Commit:      ${{ env.commit }}
-          - CommitShort: ${{ env.commitShort }}
-          - Parents:     ${{ env.parents }}
-          - Author:      ${{ env.author }}
-          - Date:        ${{ env.date }}
-          - Committer:   ${{ env.committer }}
-          - Message:     ${{ env.message }}
-EOF
-)
+        --------------------------------------------------
+        **Upload Metadata**
+        - Commit:      ${{ env.commit }}
+        - CommitShort: ${{ env.commitShort }}
+        - Parents:     ${{ env.parents }}
+        - Author:      ${{ env.author }}
+        - Date:        ${{ env.date }}
+        - Committer:   ${{ env.committer }}
+        - Message:     ${{ env.message }}
+        EOF
+        )
         fi
 
         SUMMARY=$(cat <<EOF
@@ -215,8 +216,8 @@ EOF
         **API Response**
         - File version id: ${{ env.recordId }}
         - You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}
-  EOF
-  )
+        EOF
+        )
 
         MESSAGE="${SUMMARY//'%'/'%25'}"
         MESSAGE="${MESSAGE//$'\n'/'%0A'}"
