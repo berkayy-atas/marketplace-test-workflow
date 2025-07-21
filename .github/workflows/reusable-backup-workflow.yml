@@ -12,7 +12,6 @@ on:
         description: 'Password to encrypt the backup archive'
         required: true
         
-# Her iş akışı çalıştırması için benzersiz bir önbellek anahtarı tanımlıyoruz.
 env:
   BACKUP_CACHE_KEY: backup-cache-${{ github.run_id }}-
 
@@ -107,12 +106,10 @@ jobs:
           key: ${{ env.BACKUP_CACHE_KEY }}
 
           
-  # 2. İş: Önbellekten Geri Yükle ve Depolamaya Yükle
   auth_and_Upload:
     runs-on: ubuntu-latest
     needs: uploading_and_encryption
     steps:
-      # Artifact yerine, şifrelenmiş dosyayı önbellekten geri yüklüyoruz.
       - name: Restore encrypted backup from cache
         uses: actions/cache/restore@v4
         with:
@@ -231,12 +228,10 @@ jobs:
 
           echo "Backup uploaded successfully."
 
-      # YENİ ADIM: Yedekleme özetini loglara yazdırır.
       - name: Print Backup Summary
         if: success()
         shell: bash
         env:
-          # Önceki adımlardan gelen çıktıları bu adımın ortam değişkenlerine atıyoruz.
           recordId: ${{ steps.shieldRequest.outputs.recordId }}
           directoryRecordId: ${{ steps.shieldRequest.outputs.directoryRecordId }}
           commit: ${{ steps.shieldRequest.outputs.commit }}
@@ -248,54 +243,56 @@ jobs:
           message: ${{ steps.shieldRequest.outputs.message }}
           endpointId: ${{ steps.activation.outputs.endpointId }}
         run: |
-          # Tüm mesajı, yeni satır karakterleri ($'\n') kullanarak tek bir değişkende biriktiriyoruz.
-          MESSAGE="✅ **Backup completed successfully!**"
-          MESSAGE+=$'\n\n'
-          MESSAGE+="--------------------------------------------------\n"
-          MESSAGE+="**Git Metadata**\n"
-          MESSAGE+="Repository: ${{ github.repository }}\n"
-          MESSAGE+="- Owner: ${{ github.repository_owner }} [${{ github.event.repository.owner.type }}]\n"
-          MESSAGE+="- Event: ${{ github.event_name }}\n"
-          MESSAGE+="- Ref:   ${{ github.ref }}\n"
-          MESSAGE+="- Actor: ${{ github.actor }}\n"
-
-          # Eğer commit bilgisi varsa, ilgili bölümü mesaja ekliyoruz.
+          # 1. Adım: Koşullu "Upload Metadata" bloğunu hazırla.
+          # Eğer commit bilgisi yoksa bu değişken boş kalacak.
+          UPLOAD_METADATA=""
           if [ -n "${{ env.commit }}" ]; then
-            MESSAGE+=$'\n'
-            MESSAGE+="--------------------------------------------------\n"
-            MESSAGE+="**Upload Metadata**\n"
-            MESSAGE+="- Commit:      ${{ env.commit }}\n"
-            MESSAGE+="- CommitShort: ${{ env.commitShort }}\n"
-            MESSAGE+="- Parents:     ${{ env.parents }}\n"
-            MESSAGE+="- Author:      ${{ env.author }}\n"
-            MESSAGE+="- Date:        ${{ env.date }}\n"
-            MESSAGE+="- Committer:   ${{ env.committer }}\n"
-            MESSAGE+="- Message:     ${{ env.message }}\n"
+            UPLOAD_METADATA=$(cat <<EOF
+          --------------------------------------------------
+          **Upload Metadata**
+          - Commit:      ${{ env.commit }}
+          - CommitShort: ${{ env.commitShort }}
+          - Parents:     ${{ env.parents }}
+          - Author:      ${{ env.author }}
+          - Date:        ${{ env.date }}
+          - Committer:   ${{ env.committer }}
+          - Message:     ${{ env.message }}
+          EOF
+            )
           fi
 
-          # Mesajın son bölümünü ekliyoruz.
-          MESSAGE+=$'\n'
-          MESSAGE+="--------------------------------------------------\n"
-          MESSAGE+="**API Response**\n"
-          MESSAGE+="- File version id: ${{ env.recordId }}\n"
-          MESSAGE+="- You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}"
+          # 2. Adım: Ana metin şablonunu oluştur ve koşullu bloğu araya ekle.
+          # Eğer UPLOAD_METADATA boş ise, bu satır hiçbir şey yazdırmaz.
+          SUMMARY=$(cat <<EOF
+          ✅ **Backup completed successfully!**
 
-          # GitHub Actions'ın çok satırlı komutları doğru işlemesi için
-          # özel karakterleri (% -> %25, \n -> %0A) URL-encode formatına çeviriyoruz.
-          MESSAGE="${MESSAGE//'%'/'%25'}"
+          --------------------------------------------------
+          **Git Metadata**
+          Repository: ${{ github.repository }}
+          - Owner: ${{ github.repository_owner }} [${{ github.event.repository.owner.type }}]
+          - Event: ${{ github.event_name }}
+          - Ref:   ${{ github.ref }}
+          - Actor: ${{ github.actor }}
+
+          ${UPLOAD_METADATA}
+          --------------------------------------------------
+          **API Response**
+          - File version id: ${{ env.recordId }}
+          - You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}
+          EOF
+          )
+
+          # 3. Adım: GitHub'ın anlayacağı formata çevir ve yazdır.
+          MESSAGE="${SUMMARY//'%'/'%25'}"
           MESSAGE="${MESSAGE//$'\n'/'%0A'}"
           MESSAGE="${MESSAGE//$'\r'/'%0D'}"
-          
-          # Son olarak, formatlanmış mesajı tek bir ::notice komutuyla yazdırıyoruz.
-          echo -e "::notice::$MESSAGE"
 
-  # 3. İş: Geçici Önbelleği Temizle
+          echo "::notice::$MESSAGE"
+
   cleanup:
     runs-on: ubuntu-latest
-    # Bu iş, önceki işlerin sonucuna bakılmaksızın her zaman çalışır.
     if: always()
     needs: [auth_and_Upload]
-    # Önbelleği silebilmek için 'actions: write' izni gereklidir.
     permissions:
       actions: write
     steps:
