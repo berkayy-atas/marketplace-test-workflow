@@ -196,8 +196,8 @@ runs:
           - Date:        ${{ env.date }}
           - Committer:   ${{ env.committer }}
           - Message:     ${{ env.message }}
-          EOF
-          )
+EOF
+)
         fi
 
         SUMMARY=$(cat <<EOF
@@ -215,8 +215,8 @@ runs:
         **API Response**
         - File version id: ${{ env.recordId }}
         - You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}
-        EOF
-        )
+  EOF
+  )
 
         MESSAGE="${SUMMARY//'%'/'%25'}"
         MESSAGE="${MESSAGE//$'\n'/'%0A'}"
