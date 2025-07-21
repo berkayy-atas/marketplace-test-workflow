@@ -299,9 +299,16 @@ jobs:
     permissions:
       actions: write
     steps:
-      - name: Clean up temporary backup cache
+      - name: Clean up temporary backup cache via REST API
         env:
+          # API isteği için GITHUB_TOKEN gereklidir
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Cleaning up cache with key: ${{ env.BACKUP_CACHE_KEY }}"
-          gh cache delete "${{ env.BACKUP_CACHE_KEY }}" --confirm || echo "Cache entry not found or already deleted."
+          echo "Deleting cache with key: ${{ env.BACKUP_CACHE_KEY }}"
+          
+          # GitHub Actions Cache API'sine DELETE isteği gönder
+          curl -L \
+            -X DELETE \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/caches?key=${{ env.BACKUP_CACHE_KEY }}"
