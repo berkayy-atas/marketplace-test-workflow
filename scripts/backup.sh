@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Gerekli env değişkenleri:
-# ENCRYPTION_PASSWORD, ACTIVATION_CODE
+# Beklenen environment değişkenleri:
 : "${ENCRYPTION_PASSWORD:?ENCRYPTION_PASSWORD missing}"
 : "${ACTIVATION_CODE:?ACTIVATION_CODE missing}"
 
-REPO_NAME="$(basename "${GITHUB_REPOSITORY}")"
+# GitHub context (YAML'den env olarak da geçiyor; yoksa mevcut ortamdan okunur)
+REPOSITORY_ID="${REPOSITORY_ID:-${GITHUB_REPOSITORY_ID:-}}"
+REPOSITORY="${REPOSITORY:-${GITHUB_REPOSITORY:-}}"
+EVENT_NAME="${EVENT_NAME:-${GITHUB_EVENT_NAME:-}}"
+REF="${REF:-${GITHUB_REF:-}}"
+ACTOR="${ACTOR:-${GITHUB_ACTOR:-}}"
+REPOSITORY_OWNER="${REPOSITORY_OWNER:-${GITHUB_REPOSITORY_OWNER:-}}"
+
+REPO_NAME="$(basename "${REPOSITORY}")"
 ENC_FILE_NAME="${REPO_NAME}.tar.zst.enc"
 
-# 1) Arşiv + ZSTD + OpenSSL AES-256
+# 1) Arşivle, zstd ile sıkıştır, OpenSSL AES-256 ile şifrele
 tar -cf repo.tar repo-mirror
 zstd -9 repo.tar -o repo.tar.zst
 
@@ -19,20 +26,31 @@ openssl enc -aes-256-cbc -salt -pbkdf2 \
   -pass pass:"${ENCRYPTION_PASSWORD}"
 
 UNCOMPRESSED_SIZE="$(stat --printf='%s' repo.tar)"
-COMPRESSED_SIZE="$(stat --printf='%s' repo.tar.zst)" || COMPRESSED_SIZE="$(stat --printf='%s' repo.tar.zst 2>/dev/null || echo 0)"
+# Şifreli dosya boyutu
+COMPRESSED_SIZE="$(stat --printf='%s' "${ENC_FILE_NAME}")"
 
-# 2) Aktivasyon Token
-RESP_ACT="$(curl -s -w $'\n%{http_code}' -X POST "https://dev.api.file-security.icredible.com/endpoint/activation" \
+# 2) Aktivasyon (token alma)
+# Owner type için GITHUB_EVENT_PATH içinden jq ile okuma (yoksa boş string)
+OWNER_TYPE=""
+if [ -n "${GITHUB_EVENT_PATH:-}" ] && [ -f "${GITHUB_EVENT_PATH}" ]; then
+  OWNER_TYPE="$(jq -r '.repository.owner.type // empty' "${GITHUB_EVENT_PATH}")"
+fi
+
+ACTIVATION_PAYLOAD="$(jq -nc \
+  --arg ac   "$ACTIVATION_CODE" \
+  --arg uid  "${REPOSITORY_ID}" \
+  --arg ip   "" \
+  --arg os   "Linux" \
+  --arg et   "Workstation" \
+  --arg en   "Github Endpoint (${REPOSITORY})" \
+  '{activationCode:$ac, uniqueId:$uid, ip:$ip, operatingSystem:$os, endpointType:$et, endpointName:$en}'
+)"
+
+RESP_ACT="$(curl -s -w $'\n%{http_code}' -X POST \
+  "https://dev.api.file-security.icredible.com/endpoint/activation" \
   -H "Content-Type: application/json" \
-  -d "$(jq -nc \
-        --arg ac   "$ACTIVATION_CODE" \
-        --arg uid  "${GITHUB_REPOSITORY_ID:-}" \
-        --arg ip   "${RUNNER_TRACKING_ID:-}" \
-        --arg os   "Linux" \
-        --arg et   "Workstation" \
-        --arg en   "Github Endpoint (${GITHUB_REPOSITORY})" \
-        '{activationCode:$ac, uniqueId:$uid, ip:$ip, operatingSystem:$os, endpointType:$et, endpointName:$en}'
-      )")"
+  -d "${ACTIVATION_PAYLOAD}"
+)"
 
 HTTP_ACT="$(echo "$RESP_ACT" | tail -n1)"
 JSON_ACT="$(echo "$RESP_ACT" | head -n -1)"
@@ -40,10 +58,11 @@ if [ "$HTTP_ACT" -ne 200 ]; then
   echo "Activation failed: $JSON_ACT"
   exit 1
 fi
+
 ENDPOINT_ID="$(echo "$JSON_ACT" | jq -r '.data.endpointId')"
 TOKEN="$(echo "$JSON_ACT" | jq -r '.data.token')"
 
-# 3) Git meta (yoksa boş)
+# 3) Git metadata (varsa doldur)
 if git rev-parse --verify HEAD >/dev/null 2>&1; then
   COMMIT="$(git log -1 --pretty=format:%H)"
   SHORT="$(git log -1 --pretty=format:%h)"
@@ -56,23 +75,27 @@ else
   COMMIT=""; SHORT=""; PARENTS=""; AUTHOR=""; DATE=""; COMMITTER=""; MESSAGE=""
 fi
 
-# Dinamik form alanlarını hazırla
-curl_args=(
-  -F "MetaData[Event]=${GITHUB_EVENT_NAME}"
-  -F "MetaData[Ref]=${GITHUB_REF}"
-  -F "MetaData[Actor]=${GITHUB_ACTOR}"
-  -F "MetaData[Owner]=${GITHUB_REPOSITORY_OWNER}"
-  -F "MetaData[OwnerType]=${GITHUB_EVENT_PATH:+$(jq -r '.repository.owner.type' "$GITHUB_EVENT_PATH" 2>/dev/null || echo '')}"
+# 4) Upload için form argümanlarını hazırla
+declare -a CURL_ARGS=(
+  -F "MetaData[Event]=${EVENT_NAME}"
+  -F "MetaData[Ref]=${REF}"
+  -F "MetaData[Actor]=${ACTOR}"
+  -F "MetaData[Owner]=${REPOSITORY_OWNER}"
 )
-[ -n "$COMMIT" ]    && curl_args+=(-F "MetaData[Commit]=$COMMIT")
-[ -n "$SHORT" ]     && curl_args+=(-F "MetaData[CommitShort]=$SHORT")
-[ -n "$PARENTS" ]   && curl_args+=(-F "MetaData[Parents]=$PARENTS")
-[ -n "$AUTHOR" ]    && curl_args+=(-F "MetaData[Author]=$AUTHOR")
-[ -n "$DATE" ]      && curl_args+=(-F "MetaData[Date]=$DATE")
-[ -n "$COMMITTER" ] && curl_args+=(-F "MetaData[Committer]=$COMMITTER")
-[ -n "$MESSAGE" ]   && curl_args+=(-F "MetaData[Message]=$MESSAGE")
 
-# 4) Yükleme
+# OwnerType varsa ekleyelim
+if [ -n "$OWNER_TYPE" ]; then
+  CURL_ARGS+=(-F "MetaData[OwnerType]=${OWNER_TYPE}")
+fi
+[ -n "$COMMIT" ]    && CURL_ARGS+=(-F "MetaData[Commit]=$COMMIT")
+[ -n "$SHORT" ]     && CURL_ARGS+=(-F "MetaData[CommitShort]=$SHORT")
+[ -n "$PARENTS" ]   && CURL_ARGS+=(-F "MetaData[Parents]=$PARENTS")
+[ -n "$AUTHOR" ]    && CURL_ARGS+=(-F "MetaData[Author]=$AUTHOR")
+[ -n "$DATE" ]      && CURL_ARGS+=(-F "MetaData[Date]=$DATE")
+[ -n "$COMMITTER" ] && CURL_ARGS+=(-F "MetaData[Committer]=$COMMITTER")
+[ -n "$MESSAGE" ]   && CURL_ARGS+=(-F "MetaData[Message]=$MESSAGE")
+
+# 5) Yükleme (shield)
 RESP_UP="$(curl -s -w $'\n%{http_code}' -X POST \
   "https://dev.api.file-security.icredible.com/backup/shield" \
   -H "Authorization: Bearer ${TOKEN}" \
@@ -80,13 +103,14 @@ RESP_UP="$(curl -s -w $'\n%{http_code}' -X POST \
   -F "Size=${UNCOMPRESSED_SIZE}" \
   -F "CompressedFileSize=${COMPRESSED_SIZE}" \
   -F "Attributes=32" \
-  -F "FileName=${GITHUB_REPOSITORY}" \
+  -F "FileName=${REPOSITORY}" \
   -F "CompressionEngine=None" \
   -F "CompressionLevel=NoCompression" \
-  -F "FullPath=/${GITHUB_REPOSITORY}/repo.tar.zst" \
+  -F "FullPath=/${REPOSITORY}/repo.tar.zst" \
   -F "encryptionType=None" \
   -F "RevisionType=1" \
-  "${curl_args[@]}")"
+  "${CURL_ARGS[@]}"
+)"
 
 HTTP_UP="$(echo "$RESP_UP" | tail -n1)"
 JSON_UP="$(echo "$RESP_UP" | head -n -1)"
@@ -98,26 +122,16 @@ fi
 RECORD_ID="$(echo "$JSON_UP" | jq -r '.data.recordId')"
 DIR_RECORD_ID="$(echo "$JSON_UP" | jq -r '.data.directoryRecordId')"
 
-# 5) Özet bildirimi
-SUMMARY=$(cat <<EOF
-✅ **Backup completed successfully!**
---------------------------------------------------
-**Git Metadata**
-Repository: ${{ github.repository }}
-- Owner: ${{ github.repository_owner }} [${{ github.event.repository.owner.type }}]
-- Event: ${{ github.event_name }}
-- Ref:   ${{ github.ref }}
-- Actor: ${{ github.actor }}
-
-${UPLOAD_METADATA}
---------------------------------------------------
-**API Response**
-- File version id: ${{ env.recordId }}
-- You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}
-EOF
-)
-MESSAGE="${SUMMARY//'%'/'%25'}"
-MESSAGE="${MESSAGE//$'\n'/'%0A'}"
-MESSAGE="${MESSAGE//$'\r'/'%0D'}"
-      
-echo "::notice::$MESSAGE"
+# 6) Sonraki YAML adımı için ENV değişkenleri (özet aynı kalsın)
+{
+  echo "endpointId=${ENDPOINT_ID}"
+  echo "recordId=${RECORD_ID}"
+  echo "directoryRecordId=${DIR_RECORD_ID}"
+  echo "commit=${COMMIT}"
+  echo "commitShort=${SHORT}"
+  echo "parents=${PARENTS}"
+  echo "author=${AUTHOR}"
+  echo "date=${DATE}"
+  echo "committer=${COMMITTER}"
+  echo "message=${MESSAGE}"
+} >> "$GITHUB_ENV"
