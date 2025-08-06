@@ -99,28 +99,26 @@ RECORD_ID="$(echo "$JSON_UP" | jq -r '.data.recordId')"
 DIR_RECORD_ID="$(echo "$JSON_UP" | jq -r '.data.directoryRecordId')"
 
 # 5) Özet bildirimi
-{
-  echo "✅ Backup completed successfully!"
-  echo "--------------------------------------------------"
-  echo "**Git Metadata**"
-  echo "Repository: ${GITHUB_REPOSITORY}"
-  echo "- Owner: ${GITHUB_REPOSITORY_OWNER}"
-  echo "- Event: ${GITHUB_EVENT_NAME}"
-  echo "- Ref:   ${GITHUB_REF}"
-  echo "- Actor: ${GITHUB_ACTOR}"
-  if [ -n "$COMMIT" ]; then
-    echo "--------------------------------------------------"
-    echo "**Upload Metadata**"
-    echo "- Commit:      $COMMIT"
-    echo "- CommitShort: $SHORT"
-    echo "- Parents:     $PARENTS"
-    echo "- Author:      $AUTHOR"
-    echo "- Date:        $DATE"
-    echo "- Committer:   $COMMITTER"
-    echo "- Message:     $MESSAGE"
-  fi
-  echo "--------------------------------------------------"
-  echo "**API Response**"
-  echo "- File version id: ${RECORD_ID}"
-  echo "- Management link: https://dev.management.file-security.icredible.com/dashboard/file-management/${ENDPOINT_ID}/${DIR_RECORD_ID}"
-} | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/\n/%0A/g' | xargs -0 -I{} echo "::notice::{}"
+        SUMMARY=$(cat <<EOF
+        ✅ **Backup completed successfully!**
+        --------------------------------------------------
+        **Git Metadata**
+        Repository: ${{ github.repository }}
+        - Owner: ${{ github.repository_owner }} [${{ github.event.repository.owner.type }}]
+        - Event: ${{ github.event_name }}
+        - Ref:   ${{ github.ref }}
+        - Actor: ${{ github.actor }}
+
+        ${UPLOAD_METADATA}
+        --------------------------------------------------
+        **API Response**
+        - File version id: ${{ env.recordId }}
+        - You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}
+        EOF
+        )
+
+        MESSAGE="${SUMMARY//'%'/'%25'}"
+        MESSAGE="${MESSAGE//$'\n'/'%0A'}"
+        MESSAGE="${MESSAGE//$'\r'/'%0D'}"
+        
+        echo "::notice::$MESSAGE"
