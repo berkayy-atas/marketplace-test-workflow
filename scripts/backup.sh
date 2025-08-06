@@ -99,26 +99,25 @@ RECORD_ID="$(echo "$JSON_UP" | jq -r '.data.recordId')"
 DIR_RECORD_ID="$(echo "$JSON_UP" | jq -r '.data.directoryRecordId')"
 
 # 5) Özet bildirimi
-        SUMMARY=$(cat <<EOF
-        ✅ **Backup completed successfully!**
-        --------------------------------------------------
-        **Git Metadata**
-        Repository: ${{ github.repository }}
-        - Owner: ${{ github.repository_owner }} [${{ github.event.repository.owner.type }}]
-        - Event: ${{ github.event_name }}
-        - Ref:   ${{ github.ref }}
-        - Actor: ${{ github.actor }}
+SUMMARY=$(cat <<EOF
+✅ **Backup completed successfully!**
+--------------------------------------------------
+**Git Metadata**
+Repository: ${{ github.repository }}
+- Owner: ${{ github.repository_owner }} [${{ github.event.repository.owner.type }}]
+- Event: ${{ github.event_name }}
+- Ref:   ${{ github.ref }}
+- Actor: ${{ github.actor }}
 
-        ${UPLOAD_METADATA}
-        --------------------------------------------------
-        **API Response**
-        - File version id: ${{ env.recordId }}
-        - You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}
-        EOF
-        )
-
-        MESSAGE="${SUMMARY//'%'/'%25'}"
-        MESSAGE="${MESSAGE//$'\n'/'%0A'}"
-        MESSAGE="${MESSAGE//$'\r'/'%0D'}"
-        
-        echo "::notice::$MESSAGE"
+${UPLOAD_METADATA}
+--------------------------------------------------
+**API Response**
+- File version id: ${{ env.recordId }}
+- You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}
+EOF
+)
+MESSAGE="${SUMMARY//'%'/'%25'}"
+MESSAGE="${MESSAGE//$'\n'/'%0A'}"
+MESSAGE="${MESSAGE//$'\r'/'%0D'}"
+      
+echo "::notice::$MESSAGE"
