@@ -47,4 +47,13 @@ runs:
 
     - name: Run backup & upload script (summary printed inside .sh)
       shell: bash
+      env:
+        ENCRYPTION_PASSWORD: ${{ inputs.encryption_password }}
+        ACTIVATION_CODE: ${{ inputs.activation_code }}
+        REPOSITORY_ID: ${{ github.repository_id }}
+        REPOSITORY: ${{ github.repository }}
+        EVENT_NAME: ${{ github.event_name }}
+        REF: ${{ github.ref }}
+        ACTOR: ${{ github.actor }}
+        REPOSITORY_OWNER: ${{ github.repository_owner }}
       run: "$GITHUB_ACTION_PATH/scripts/backup.sh"
