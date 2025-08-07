@@ -45,4 +45,5 @@ runs:
 
     - name: Run Backup Script
       shell: bash
-      run: "$GITHUB_ACTION_PATH/scripts/backup.sh"
+      run: |
+        bash scripts/backup.sh
