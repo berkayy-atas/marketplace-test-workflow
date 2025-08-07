@@ -11,19 +11,21 @@ inputs:
   encryption_password:
     description: 'Secret key for encrypting the backup (min. 32 chars)'
     required: true
-
+ 
+    
 runs:
   using: 'composite'
   steps:
+  
     - name: Validate encryption password length
       shell: bash
       run: |
         ENC_KEY="${{ inputs.encryption_password }}"
         if [ "${#ENC_KEY}" -lt 32 ]; then
-          echo "::error ::The encryption_password must be at least 32 characters long (got ${#ENC_KEY})."
+          echo "::error::The encryption_password must be at least 32 characters long (got ${#ENC_KEY})."
           exit 1
         fi
-
+        
     - name: Checkout Repository
       uses: actions/checkout@v4
       with:
@@ -41,19 +43,8 @@ runs:
         sudo apt-get update
         sudo apt-get install -y zstd jq
 
-    - name: Make script executable
+    - name: Run Backup Script
       shell: bash
-      run: chmod +x "$GITHUB_ACTION_PATH/scripts/backup.sh"
-
-    - name: Run backup & upload script (summary printed inside .sh)
-      shell: bash
-      env:
-        ENCRYPTION_PASSWORD: ${{ inputs.encryption_password }}
-        ACTIVATION_CODE: ${{ inputs.activation_code }}
-        REPOSITORY_ID: ${{ github.repository_id }}
-        REPOSITORY: ${{ github.repository }}
-        EVENT_NAME: ${{ github.event_name }}
-        REF: ${{ github.ref }}
-        ACTOR: ${{ github.actor }}
-        REPOSITORY_OWNER: ${{ github.repository_owner }}
-      run: "$GITHUB_ACTION_PATH/scripts/backup.sh"
+      run: |
+        chmod +x ./backup.sh
+        ./backup.sh
