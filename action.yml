@@ -47,4 +47,4 @@ runs:
       shell: bash
       run: |
         chmod +x ./backup.sh
-        ./backup.sh
+        ./scripts/backup.sh
