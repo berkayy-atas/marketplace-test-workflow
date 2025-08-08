@@ -45,8 +45,7 @@ RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
   -F "CompressionLevel=NoCompression" \
   -F "FullPath=E:\/$GITHUB_REPOSITORY/repo.tar.zst" \
   -F "EncryptionType=None" \
-  -F "RevisionType=1"\
-  "${CURL_ARGS[@]}")
+  -F "RevisionType=1")
 
 HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
 JSON_BODY=$(echo "$RESPONSE" | head -n -1)
