@@ -23,14 +23,14 @@ else
 fi
 
 # Build curl arguments array
-CURL_ARGS+=(-F "MetaData[Event]=$EVENT" -F "MetaData[Ref]=$REF" -F "MetaData[Actor]=$ACTOR" -F "MetaData[Owner]=$OWNER" -F "MetaData[OwnerType]=$OWNER_TYPE")
-[ -n "$COMMIT" ] && CURL_ARGS+=(-F "MetaData[Commit]=$COMMIT")
-[ -n "$SHORT" ] && CURL_ARGS+=(-F "MetaData[CommitShort]=$SHORT")
-[ -n "$PARENTS" ] && CURL_ARGS+=(-F "MetaData[Parents]=$PARENTS")
-[ -n "$AUTHOR" ] && CURL_ARGS+=(-F "MetaData[Author]=$AUTHOR")
-[ -n "$DATE" ] && CURL_ARGS+=(-F "MetaData[Date]=$DATE")
-[ -n "$COMMITTER" ] && CURL_ARGS+=(-F "MetaData[Committer]=$COMMITTER")
-[ -n "$MESSAGE" ] && CURL_ARGS+=(-F "MetaData[Message]=$MESSAGE")
+CURL_ARGS+=(-F "MetaData[Event]=$EVENT" \ -F "MetaData[Ref]=$REF" \ -F "MetaData[Actor]=$ACTOR" \ -F "MetaData[Owner]=$OWNER" \ -F "MetaData[OwnerType]=$OWNER_TYPE \ ")
+[ -n "$COMMIT" ] && CURL_ARGS+=(-F "MetaData[Commit]=$COMMIT" \ )
+[ -n "$SHORT" ] && CURL_ARGS+=(-F "MetaData[CommitShort]=$SHORT" \ )
+[ -n "$PARENTS" ] && CURL_ARGS+=(-F "MetaData[Parents]=$PARENTS" \ )
+[ -n "$AUTHOR" ] && CURL_ARGS+=(-F "MetaData[Author]=$AUTHOR" \ )
+[ -n "$DATE" ] && CURL_ARGS+=(-F "MetaData[Date]=$DATE" \ )
+[ -n "$COMMITTER" ] && CURL_ARGS+=(-F "MetaData[Committer]=$COMMITTER" \ )
+[ -n "$MESSAGE" ] && CURL_ARGS+=(-F "MetaData[Message]=$MESSAGE" \ )
 
 echo "Uploading backup file: $ENC_FILE_NAME..."
 RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
@@ -45,7 +45,8 @@ RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
   -F "CompressionLevel=NoCompression" \
   -F "FullPath=E:\/$GITHUB_REPOSITORY/repo.tar.zst" \
   -F "EncryptionType=None" \
-  -F "RevisionType=1" )
+  -F "RevisionType=1"\
+  "${CURL_ARGS[@]}")
 
 HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
 JSON_BODY=$(echo "$RESPONSE" | head -n -1)
