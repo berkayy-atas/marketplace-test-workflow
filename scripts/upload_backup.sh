@@ -40,10 +40,10 @@ RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
   -F "Size=$UNCOMPRESSED_SIZE" \
   -F "CompressedFileSize=$COMPRESSED_SIZE" \
   -F "Attributes=32" \
-  -F "FileName=$GITHUB_REPOSITORY" \
+  -F "FileName=${{ github.repository }}" \
   -F "CompressionEngine=None" \
   -F "CompressionLevel=NoCompression" \
-  -F "FullPath=/$GITHUB_REPOSITORY/repo.tar.zst" \
+  -F "FullPath=/${{ github.repository }}/repo.tar.zst" \
   -F "encryptionType=None" \
   -F "RevisionType=1" \
   "${CURL_ARGS[@]}")
