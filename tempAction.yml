@@ -32,29 +32,10 @@ runs:
         fetch-depth: 0
         ref: ${{ github.ref }}
 
-    - name: Configure Repository for Full Mirror
-      shell: bash
-      run: |
-        git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
-        git config remote.origin.tagopt --tags
-        git fetch origin --prune --tags --force
-        
-        git for-each-ref --format='%(refname:short)' refs/remotes/origin | grep -v HEAD | while read branch; do
-            b=${branch#origin/}
-            if ! git show-ref --quiet refs/heads/"$b"; then
-                git branch "$b" "$branch"
-            fi
-        done
-
     - name: Clone Repository in Mirror Mode
       shell: bash
       run: |
         git clone --mirror . repo-mirror
-        cd repo-mirror
-        echo "--- Mirror Branches ---"
-        git branch -a
-        echo "--- Mirror Tags ---"
-        git tag -l
 
     - name: Install Dependencies
       shell: bash
@@ -168,11 +149,8 @@ runs:
           exit 1
         fi
        
-        echo "$JSON_BODY"
-        RECORD_ID=$(echo "$JSON_BODY" | jq -r '.data.recordId')
-        DIRECTORY_RECORD_ID=$(echo "$JSON_BODY" | jq -r '.data.directoryRecordId')
-        echo "recordId=$RECORD_ID" >> $GITHUB_ENV
-        echo "directoryRecordId=$DIRECTORY_RECORD_ID" >> $GITHUB_ENV
+        echo "recordId=$(echo "$JSON_BODY" | jq -r '.data.recordId')" >> $GITHUB_ENV
+        echo "directoryRecordId=$(echo "$JSON_BODY" | jq -r '.data.directoryRecordId')" >> $GITHUB_ENV
 
         echo "commit=$COMMIT" >> $GITHUB_ENV
         echo "commitShort=$SHORT" >> $GITHUB_ENV
@@ -187,30 +165,43 @@ runs:
     - name: Print Backup Summary
       shell: bash
       run: |
-        echo "✅ **Backup completed successfully!**"
-        echo
-        echo "--------------------------------------------------"
-        echo "**Git Metadata**"
-        echo "${{ github.repository }}"
-        echo "- Owner: ${{ github.repository_owner }} [${{ github.event.repository.owner.type  }} ]"
-        echo "- Event: ${{ github.event_name  }}"
-        echo "- Ref:   ${{ github.ref }}"
-        echo "- Actor: ${{ github.actor }}"
-        if [ -n "$commit" ]; then
-          echo
-          echo "--------------------------------------------------"
-          echo "**Upload Metadata**"
+        UPLOAD_METADATA=""
+        if [ -n "${{ env.commit }}" ]; then
+          # HEREDOC'un kapanış 'EOF' ve ')' karakterleri satır başında olmalıdır.
+          UPLOAD_METADATA=$(cat <<EOF
+        --------------------------------------------------
+        **Upload Metadata**
+        - Commit:      ${{ env.commit }}
+        - CommitShort: ${{ env.commitShort }}
+        - Parents:     ${{ env.parents }}
+        - Author:      ${{ env.author }}
+        - Date:        ${{ env.date }}
+        - Committer:   ${{ env.committer }}
+        - Message:     ${{ env.message }}
+        EOF
+        )
         fi
-        if [ -n "$commit" ]; then echo "- Commit:      $commit"; fi
-        if [ -n "$commitShort" ]; then echo "- CommitShort: $commitShort"; fi
-        if [ -n "$parents" ]; then echo "- Parents:     $parents"; fi
+
+        SUMMARY=$(cat <<EOF
+        ✅ **Backup completed successfully!**
+        --------------------------------------------------
+        **Git Metadata**
+        Repository: ${{ github.repository }}
+        - Owner: ${{ github.repository_owner }} [${{ github.event.repository.owner.type }}]
+        - Event: ${{ github.event_name }}
+        - Ref:   ${{ github.ref }}
+        - Actor: ${{ github.actor }}
+
+        ${UPLOAD_METADATA}
+        --------------------------------------------------
+        **API Response**
+        - File version id: ${{ env.recordId }}
+        - You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}
+        EOF
+        )
+
+        MESSAGE="${SUMMARY//'%'/'%25'}"
+        MESSAGE="${MESSAGE//$'\n'/'%0A'}"
+        MESSAGE="${MESSAGE//$'\r'/'%0D'}"
         
-        if [ -n "$author" ]; then echo "- Author:      $author"; fi
-        if [ -n "$date" ]; then echo "- Date:        $date"; fi
-        if [ -n "$committer" ]; then echo "- Committer:   $committer"; fi
-        if [ -n "$message" ]; then echo "- Message:     $message"; fi
-        echo
-        echo "--------------------------------------------------"
-        echo "**API Response**"
-        echo "- File version id: $recordId"
-        echo "- You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}  "
+        echo "::notice::$MESSAGE"
