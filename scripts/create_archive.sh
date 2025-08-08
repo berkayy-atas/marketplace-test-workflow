@@ -13,6 +13,6 @@ openssl enc -aes-256-cbc -salt -pbkdf2 -in repo.tar.zst -out "$ENC_FILE_NAME" -p
 # Set environment variables for subsequent steps
 echo "ENC_FILE_NAME=$ENC_FILE_NAME" >> $GITHUB_ENV
 echo "UNCOMPRESSED_SIZE=$(stat --printf='%s' repo.tar)" >> $GITHUB_ENV
-echo "COMPRESSED_SIZE=$(stat --printf='%s' repo.tar.zst.enc)" >> $GITHUB_ENV
+echo "COMPRESSED_SIZE=$(stat --printf='%s' $ENC_FILE_NAME)" >> $GITHUB_ENV
 
 echo "::notice ::Archive '$ENC_FILE_NAME' created successfully."
