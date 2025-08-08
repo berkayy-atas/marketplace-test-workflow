@@ -15,4 +15,4 @@ echo "ENC_FILE_NAME=$ENC_FILE_NAME" >> $GITHUB_ENV
 echo "UNCOMPRESSED_SIZE=$(stat --printf='%s' repo.tar)" >> $GITHUB_ENV
 echo "COMPRESSED_SIZE=$(stat --printf='%s' repo.tar.zst.enc)" >> $GITHUB_ENV
 
-echo "Archive '$ENC_FILE_NAME' created successfully."
+echo "::notice ::Archive '$ENC_FILE_NAME' created successfully."
