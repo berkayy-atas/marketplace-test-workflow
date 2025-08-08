@@ -16,6 +16,10 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Make Scripts Executable
+      shell: bash
+      run: chmod +x ${{ github.action_path }}/scripts/*.sh
+      
     - name: Validate encryption password length
       shell: bash
       run: ${{ github.action_path }}/scripts/validate_password.sh
