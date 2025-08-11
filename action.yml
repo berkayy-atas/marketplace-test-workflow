@@ -20,7 +20,6 @@ runs:
     MGMT_BASE_URL: 'https://dev.management.file-security.icredible.com'
     ZSTD_COMPRESSION_LEVEL: 9
   steps:
-  
     - name: Validate encryption password length
       shell: bash
       run: |
