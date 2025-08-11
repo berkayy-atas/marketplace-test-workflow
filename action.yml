@@ -15,6 +15,10 @@ inputs:
     
 runs:
   using: 'composite'
+  env:
+    API_BASE_URL: 'https://dev.api.file-security.icredible.com'
+    MGMT_BASE_URL: 'https://dev.management.file-security.icredible.com'
+    ZSTD_COMPRESSION_LEVEL: 9
   steps:
   
     - name: Validate encryption password length
@@ -51,7 +55,7 @@ runs:
         ENC_FILE_NAME="$REPO_NAME.tar.zst.enc"
 
         tar -cf repo.tar repo-mirror
-        zstd -9 repo.tar -o repo.tar.zst
+        zstd -${{ env.ZSTD_COMPRESSION_LEVEL }} repo.tar -o repo.tar.zst
         openssl enc -aes-256-cbc -salt -pbkdf2 -in repo.tar.zst -out "$ENC_FILE_NAME" -pass pass:${{ inputs.encryption_password }}
 
         echo "ENC_FILE_NAME=$ENC_FILE_NAME" >> $GITHUB_ENV
@@ -62,7 +66,7 @@ runs:
     - name: Get Activation Token
       shell: bash
       run: |
-        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://dev.api.file-security.icredible.com/endpoint/activation" \
+        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${{ env.API_BASE_URL }}/endpoint/activation" \
         -H "Content-Type: application/json" \
         -d '{
           "activationCode": "${{ inputs.activation_code }}",
@@ -127,7 +131,7 @@ runs:
 
 
         RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-          "https://dev.api.file-security.icredible.com/backup/shield" \
+          "${{ env.API_BASE_URL }}/backup/shield" \
           -H "Authorization: Bearer $TOKEN" \
           -F "file=@$ENC_FILE_NAME" \
           -F "Size=$UNCOMPRESSED_SIZE" \
@@ -196,7 +200,7 @@ runs:
         --------------------------------------------------
         **API Response**
         - File version id: ${{ env.recordId }}
-        - You can access the shielded file from this link : https://dev.management.file-security.icredible.com/dashboard/file-management/${{ env.endpointId }}/${{ env.directoryRecordId }}
+        - You can access the shielded file from this link : ${{ env.MGMT_BASE_URL }}/${{ env.endpointId }}/${{ env.directoryRecordId }}
         EOF
         )
 
