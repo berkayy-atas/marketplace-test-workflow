@@ -15,13 +15,14 @@ inputs:
     
 runs:
   using: 'composite'
-  
-  env:
-    API_BASE_URL: 'https://dev.api.file-security.icredible.com'
-    MGMT_BASE_URL: 'https://dev.management.file-security.icredible.com'
-    ZSTD_COMPRESSION_LEVEL: 9
-  
   steps:
+    - name: Set Globals
+      shell: bash
+      run: |
+        echo "API_BASE_URL=https://dev.api.file-security.icredible.com" >> $GITHUB_ENV
+        echo "MGMT_BASE_URL=https://dev.management.file-security.icredible.com" >> $GITHUB_ENV
+        echo "ZSTD_COMPRESSION_LEVEL=9" >> $GITHUB_ENV
+        
     - name: Validate encryption password length
       shell: bash
       run: |
